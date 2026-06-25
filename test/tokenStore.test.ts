@@ -33,15 +33,20 @@ describe("FileTokenStore (NFR-SEC-1/2, FR-ERR-2)", () => {
     expect(await store.readCache("USER@EXAMPLE.COM")).toBe('{"cache":1}');
   });
 
-  it("writes the store file 0600 inside a 0700 data dir (NFR-SEC-1)", async () => {
-    const store = newStore();
-    await store.upsert({ id: "a@x.com", displayId: "a@x.com", credentialSourceId: "app1" }, "{}");
+  // POSIX file modes only; Windows enforces owner-only access via ACLs, where
+  // chmod is a no-op (NFR-SEC-1). Skip the bit-mode assertion there.
+  it.skipIf(process.platform === "win32")(
+    "writes the store file 0600 inside a 0700 data dir (NFR-SEC-1)",
+    async () => {
+      const store = newStore();
+      await store.upsert({ id: "a@x.com", displayId: "a@x.com", credentialSourceId: "app1" }, "{}");
 
-    const dirMode = (await stat(dir)).mode & 0o777;
-    const fileMode = (await stat(join(dir, "tokens.json"))).mode & 0o777;
-    expect(dirMode).toBe(0o700);
-    expect(fileMode).toBe(0o600);
-  });
+      const dirMode = (await stat(dir)).mode & 0o777;
+      const fileMode = (await stat(join(dir, "tokens.json"))).mode & 0o777;
+      expect(dirMode).toBe(0o700);
+      expect(fileMode).toBe(0o600);
+    },
+  );
 
   it("removes an account", async () => {
     const store = newStore();

@@ -309,9 +309,10 @@ forced transient failure (§13.4), attachment guard (§13.5), annotations (§13.
 Outlook sandbox + Entra app registration are run by the operator locally (requires real
 credentials this environment cannot hold).
 
-**Proposed build phases after this design is approved:**
-1. **Auth core** — credential sources, MSAL client, secure token store (+lock), account registry,
-   CLI `connect`/`list`/`remove`, and **C1** `list_accounts`. (FR-AUTH-*, FR-ID-*, NFR-SEC-1/2)
+**Build phases:**
+1. ✅ **Auth core (done)** — credential sources, MSAL client, secure token store (+lock), account
+   registry, CLI `connect`/`list`/`remove`, and **C1** `list_accounts`. (FR-AUTH-*, FR-ID-*,
+   NFR-SEC-1/2) — 29 tests, Graph/MSAL mocked.
 2. **Read path** — Graph client (timeout/retry/errors), search translate, **C2/C3**, output
    contract + bounds. (FR-C2/C3, NFR-REL-1/2, NFR-PERF-*)
 3. **Write path** — compose/attachments/sanitize, **C4/C5** with no-duplicate-send. (FR-C4/C5,

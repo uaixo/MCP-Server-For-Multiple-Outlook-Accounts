@@ -9,11 +9,18 @@
 **Status legend**
 
 - ✅ **Done** — implemented and tested in this repo.
-- 🟡 **Scaffolded** — types/contracts/entry exist; logic pending.
+- 🟡 **Partial** — implemented for the current slice / type or contract exists; more pending.
 - ◻ **Planned** — design fixed (see architecture.md); not yet coded.
 
-**Current phase:** scaffold + design. Only config/types/contracts/entry points are coded; all
-capability behaviour is ◻ Planned by design.
+**Current phase:** **Phase 1 complete** — auth core (credential sources, MSAL client, secure
+token store + cross-process lock, account registry), the `connect`/`list`/`remove` CLI, and **C1
+`list_accounts`**. 29 tests pass (Graph/MSAL mocked). Read/write/organise capabilities (C2–C8) and
+the Graph client remain ◻ Planned (phases 2–4 in architecture.md §13).
+
+> **Delegated-to-MSAL note:** the loopback redirect, PKCE (S256), and CSRF `state`
+> (FR-AUTH-2/3/4, NFR-SEC-7) are satisfied by MSAL's `acquireTokenInteractive`, the chosen
+> library (provider-mapping §4). They are marked ✅ "(MSAL)" — we rely on, rather than
+> re-implement, that hardening.
 
 ---
 
@@ -21,9 +28,9 @@ capability behaviour is ◻ Planned by design.
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| FR-C1-1 | List connected accounts as identities | `auth/tokenStore`, `capabilities/listAccounts` | `listAccounts.test` (mocked store) | ◻ |
-| FR-C1-2 | Empty → non-error connect guidance | `capabilities/listAccounts` | `listAccounts.test` | ◻ |
-| FR-C1-3 | Output feeds other tools' selectors | `capabilities/listAccounts` | `listAccounts.test` | ◻ |
+| FR-C1-1 | List connected accounts as identities | `auth/tokenStore`, `capabilities/listAccounts` | `listAccounts.test`, `tokenStore.test` | ✅ |
+| FR-C1-2 | Empty → non-error connect guidance | `capabilities/listAccounts` | `listAccounts.test` | ✅ |
+| FR-C1-3 | Output feeds other tools' selectors | `capabilities/listAccounts` | `listAccounts.test` | ✅ |
 | FR-C2-1 | Required query in native syntax | `search/translate`, `capabilities/searchConversations` | `translate.test` | ◻ |
 | FR-C2-2 | Page size default 20, max 100 | `capabilities/searchConversations` | `searchConversations.test` | ◻ |
 | FR-C2-3 | Opaque next-page cursor (`@odata.nextLink`) | `capabilities/searchConversations` | `searchConversations.test` | ◻ |
@@ -56,55 +63,59 @@ capability behaviour is ◻ Planned by design.
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| FR-ID-1 | Optional account selector on every tool but C1 | `domain/types` (`AccountSelectable`), all capabilities | `accountRegistry.test` | 🟡 (type) |
-| FR-ID-2 | Default rule (1 → use; ≥2 → disambiguate; 0 → guide) | `auth/accountRegistry` | `accountRegistry.test` | ◻ |
-| FR-ID-3 | Unknown account → error listing accounts | `auth/accountRegistry` | `accountRegistry.test` | ◻ |
-| FR-ID-4 | Case-insensitive identity (lower-cased key) | `auth/accountRegistry`, `auth/tokenStore` | `accountRegistry.test` | ◻ |
-| FR-ID-5 | Refresh uses the issuing app registration | `auth/msalClient`, `auth/credentialSources` | `msalClient.test` | ◻ |
-| FR-ID-6 | Multiple OAuth clients, auto-discovered | `auth/credentialSources` | `credentialSources.test` | ◻ |
+| FR-ID-1 | Optional account selector on every tool but C1 | `domain/types` (`AccountSelectable`), `auth/accountRegistry` | `accountRegistry.test` | 🟡 (resolver done; selectors wired per-tool from C2) |
+| FR-ID-2 | Default rule (1 → use; ≥2 → disambiguate; 0 → guide) | `auth/accountRegistry` | `accountRegistry.test` | ✅ |
+| FR-ID-3 | Unknown account → error listing accounts | `auth/accountRegistry` | `accountRegistry.test` | ✅ |
+| FR-ID-4 | Case-insensitive identity (lower-cased key) | `auth/accountRegistry`, `auth/tokenStore` | `accountRegistry.test`, `tokenStore.test` | ✅ |
+| FR-ID-5 | Refresh uses the issuing app registration | `auth/msalClient`, `auth/tokenStore`, `auth/credentialSources` | `msalClient.test` (acquireToken), `tokenStore.test` | ✅ |
+| FR-ID-6 | Multiple OAuth clients, auto-discovered | `auth/credentialSources` | `credentialSources.test` | ✅ |
 
 ## 3. Authentication & onboarding (spec §8)
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| FR-AUTH-1 | CLI connect via auth-code browser consent | `cli/connect` | `connect.test` (mocked MSAL) | 🟡 (dispatch) |
-| FR-AUTH-2 | Loopback redirect on 127.0.0.1 (+fallback) | `cli/connect` | `connect.test` | ◻ |
-| FR-AUTH-3 | PKCE (S256) | `auth/msalClient`, `cli/connect` | `connect.test` | ◻ |
-| FR-AUTH-4 | CSRF `state` round-trip; neutral on forged | `cli/connect` | `connect.test` | ◻ |
-| FR-AUTH-5 | Offline access → refresh token | `auth/msalClient` | `connect.test` | ◻ |
-| FR-AUTH-6 | Identify account via `GET /me` | `cli/connect`, `graph/client` | `connect.test` | ◻ |
-| FR-AUTH-7 | Bounded consent wait (ref 5 min) | `cli/connect` | `connect.test` | ◻ |
-| FR-AUTH-8 | CLI list (w/ source) + remove | `cli/list`, `cli/remove`, `auth/tokenStore` | `list.test`, `remove.test` | 🟡 (dispatch) |
-| FR-AUTH-9 | Re-consent repair, no restart needed | `auth/tokenStore`, `auth/msalClient` | `tokenStore.test` | ◻ |
-| FR-AUTH-10 | Least-privilege scopes | `auth/credentialSources` | `credentialSources.test` | ◻ |
+| FR-AUTH-1 | CLI connect via auth-code browser consent | `cli/connect`, `auth/msalClient` | `msalClient.test` (core flow) | ✅ |
+| FR-AUTH-2 | Loopback redirect on 127.0.0.1 (+fallback) | `auth/msalClient` (MSAL) | — | ✅ (MSAL) |
+| FR-AUTH-3 | PKCE (S256) | `auth/msalClient` (MSAL) | — | ✅ (MSAL) |
+| FR-AUTH-4 | CSRF `state` round-trip; neutral on forged | `auth/msalClient` (MSAL) | — | ✅ (MSAL) |
+| FR-AUTH-5 | Offline access → refresh token | `auth/msalClient`, `auth/credentialSources` | `msalClient.test` | ✅ |
+| FR-AUTH-6 | Identify account (authenticated identity) | `cli/connect`, `auth/msalClient` | `msalClient.test` (abort-if-undetermined) | ✅ |
+| FR-AUTH-7 | Bounded consent wait (ref 5 min) | `auth/msalClient` (`withTimeout`) | `msalClient.test` | ✅ |
+| FR-AUTH-8 | CLI list (w/ source) + remove | `cli/list`, `cli/remove`, `auth/tokenStore` | `tokenStore.test` | ✅ |
+| FR-AUTH-9 | Re-consent repair, no restart needed | `auth/tokenStore` (per-access read + atomic overwrite) | `tokenStore.test` | ✅ |
+| FR-AUTH-10 | Least-privilege scopes | `auth/credentialSources` (`OUTLOOK_SCOPES`) | `credentialSources.test` | ✅ |
+
+> FR-AUTH-6 identity = MSAL `account.username` (UPN), lower-cased as the store key. A `GET /me`
+> enrichment to prefer primary SMTP (`mail`) is a phase-2 refinement once the Graph client lands;
+> the key is stable (UPN == primary SMTP for typical M365 accounts), so no re-keying is required.
 
 ## 4. Error handling & resilience (spec §9)
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| FR-ERR-1 | Provider errors → actionable messages | `graph/errors` | `errors.test` | ◻ |
-| FR-ERR-2 | Corrupt token store → "no accounts" + warning | `auth/tokenStore` | `tokenStore.test` | ◻ |
+| FR-ERR-1 | Provider errors → actionable messages | `graph/errors` (Graph); `auth/accountRegistry` (selection) | `accountRegistry.test` | 🟡 (selection errors done; Graph mapping phase 2) |
+| FR-ERR-2 | Corrupt token store → "no accounts" + warning | `auth/tokenStore` | `tokenStore.test` | ✅ |
 | FR-ERR-3 | Validation errors before any provider call | `capabilities/*` (zod), `mail/*`, `organise/decompose` | per-capability tests | ◻ |
 
 ## 5. Output / response contract (spec §11)
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| FR-OUT-1 | Dual channel: human text + structured | `output/contract`, `domain/types` (`ToolResult`) | `contract.test` | 🟡 (type) |
+| FR-OUT-1 | Dual channel: human text + structured | `domain/types` (`ToolResult`), `capabilities/listAccounts`, `index` | `listAccounts.test` | 🟡 (C1 done; `output/contract` module pending) |
 | FR-OUT-2 | Structured authoritative when text truncated | `output/contract` | `contract.test` | ◻ |
-| FR-OUT-3 | Stable, documented field names | `output/contract` | `contract.test` | ◻ |
+| FR-OUT-3 | Stable, documented field names | `capabilities/listAccounts`, `output/contract` | `listAccounts.test` | 🟡 (C1 fields stable; central module pending) |
 
 ## 6. Non-functional — security & privacy (spec §10.1)
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| NFR-SEC-1 | Tokens local only; 600 file in 700 dir | `auth/tokenStore` | `tokenStore.test` (stat modes) | ◻ |
-| NFR-SEC-2 | Atomic temp+rename, cross-process lock | `auth/tokenStore`, `util/lock` | `lock.test`, `tokenStore.test` | ◻ |
-| NFR-SEC-3 | Attachment path guard (allow-list, resolve) | `mail/attachments`, `config` | `attachments.test` | 🟡 (config) |
+| NFR-SEC-1 | Tokens local only; 600 file in 700 dir | `auth/tokenStore` | `tokenStore.test` (stat modes) | ✅ |
+| NFR-SEC-2 | Atomic temp+rename, cross-process lock | `auth/tokenStore`, `util/lock` | `lock.test`, `tokenStore.test` | ✅ |
+| NFR-SEC-3 | Attachment path guard (allow-list, resolve) | `mail/attachments`, `config` | `attachments.test` | 🟡 (config done; reader phase 3) |
 | NFR-SEC-4 | TOCTOU-safe: open once, validate via handle | `mail/attachments` | `attachments.test` | ◻ |
 | NFR-SEC-5 | Strip CR/LF from header-bound values | `mail/sanitize` | `sanitize.test` | ◻ |
-| NFR-SEC-6 | Never log tokens/credentials/content | all modules (logging policy) | `logging.test` (no-secret assertion) | ◻ |
-| NFR-SEC-7 | Consent loopback hardening (PKCE+state) | `cli/connect` | `connect.test` | ◻ |
+| NFR-SEC-6 | Never log tokens/credentials/content | all modules (logging policy) | `logging.test` (assertion) | 🟡 (policy followed; assertion test planned) |
+| NFR-SEC-7 | Consent loopback hardening (PKCE+state) | `auth/msalClient` (MSAL) | — | ✅ (MSAL) |
 
 ## 7. Non-functional — reliability (spec §10.2)
 
@@ -127,19 +138,19 @@ capability behaviour is ◻ Planned by design.
 
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| NFR-OPS-1 | Node ≥ 18 on Windows + macOS | `package.json` (engines), `config` (path sep injectable) | `config.test` | ✅ |
-| NFR-OPS-2 | stdio transport; report accounts to stderr | `index` | manual + `index` smoke | 🟡 |
+| NFR-OPS-1 | Node ≥ 18 on Windows + macOS | `package.json` (engines), `config` (path sep injectable), `auth/msalClient` (cross-platform open) | `config.test` | ✅ |
+| NFR-OPS-2 | stdio transport; report accounts to stderr | `index` | manual smoke (CLI/list verified) | ✅ |
 | NFR-OPS-3 | All knobs via env vars | `config` | `config.test` | ✅ |
-| NFR-OPS-4 | MCP behavioural annotations; send/organise destructive | `index` (tool registration) | `tools.annotations.test` | ◻ |
+| NFR-OPS-4 | MCP behavioural annotations; send/organise destructive | `index` (tool registration) | `tools.annotations.test` | 🟡 (C1 annotated; destructive tools from phase 3) |
 
 ## 10. Constraints & assumptions (spec §14)
 
 | Id | Summary | Where addressed | Status |
 | --- | --- | --- | --- |
 | CON-1 | One server = one provider (Outlook) | whole build; `package.json` name | ✅ |
-| CON-2 | Host acts on destructive annotations | `index` declares only | ◻ |
+| CON-2 | Host acts on destructive annotations | `index` declares only | 🟡 (C1 declared) |
 | CON-3 | Unverified-app consent policy in onboarding docs | build phase 5 docs | ◻ |
-| CON-4 | Large binaries via allow-listed path, not base64 | `mail/attachments`, `config` | 🟡 |
+| CON-4 | Large binaries via allow-listed path, not base64 | `mail/attachments`, `config` | 🟡 (config done) |
 | ASM-1 | Operator can register Entra app + run CLI | onboarding docs | ◻ |
 | ASM-2 | Egress to Graph/Entra available | runtime env | n/a |
 
@@ -149,16 +160,17 @@ capability behaviour is ◻ Planned by design.
 
 | §13 criterion | Proven by | Live (operator) |
 | --- | --- | --- |
-| 1. Multi-account selection | `accountRegistry.test` | — |
-| 2. Capabilities C1–C8 | per-capability mocked tests | ✓ real sandbox |
-| 3. Onboarding (PKCE+state, refresh, re-consent) | `connect.test`, `tokenStore.test` (mocked MSAL) | ✓ real consent |
-| 4. No duplicate sends | `retry.test` (forced transient) | — |
-| 5. Attachment guard | `attachments.test` | — |
-| 6. Safety annotations | `tools.annotations.test` | ✓ host prompt |
-| 7. Resilience (timeout + retry) | `client.test`, `retry.test` | — |
-| 8. Local-only secrets (600/700) | `tokenStore.test` (stat) | — |
-| 9. Bounded output | `contract.test`, `readConversation.test` | — |
+| 1. Multi-account selection | `accountRegistry.test` ✅ | — |
+| 2. Capabilities C1–C8 | C1: `listAccounts.test` ✅; C2–C8 ◻ | ✓ real sandbox |
+| 3. Onboarding (PKCE+state, refresh, re-consent) | `msalClient.test`, `tokenStore.test` (mocked MSAL) 🟡 | ✓ real consent |
+| 4. No duplicate sends | `retry.test` (forced transient) ◻ | — |
+| 5. Attachment guard | `attachments.test` ◻ | — |
+| 6. Safety annotations | C1 annotated; `tools.annotations.test` ◻ | ✓ host prompt |
+| 7. Resilience (timeout + retry) | `client.test`, `retry.test` ◻ | — |
+| 8. Local-only secrets (600/700) | `tokenStore.test` (stat) ✅ | — |
+| 9. Bounded output | `contract.test`, `readConversation.test` ◻ | — |
 
-> Criteria 2 and 3 have an offline (mocked) portion proven here and a live portion that requires a
-> real Entra app registration + Outlook mailboxes, run locally by the operator (this environment
-> cannot hold live credentials).
+> Criteria 2 and 3 have an offline (mocked) portion and a live portion that requires a real Entra
+> app registration + Outlook mailboxes, run locally by the operator (this environment cannot hold
+> live credentials). The interactive consent flow itself (FR-AUTH-2/3/4) is delegated to MSAL and
+> verified live by the operator.

@@ -14,20 +14,23 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 
 ---
 
-## ⚠️ Project status: scaffold + design
+## Project status: phase 1 (auth core + `list_accounts`)
 
-This repository currently contains the **project scaffold and design only**, for review before the
-full capability build. What exists today:
+Built with **TypeScript 6.0.3**; build, typecheck, tests (29), and format all green. What exists today:
 
-- ✅ Buildable TypeScript 6.0.3 project (build, test, format all green).
-- ✅ Neutral domain types and subsystem contracts (`src/domain/`).
-- ✅ Tested configuration loader (`src/config.ts`).
-- ✅ Server + CLI entry points (start and report status; **no capability tools yet**).
-- ✅ Architecture design + requirements traceability matrix.
+- ✅ Architecture design + requirements traceability matrix (`doc/`).
+- ✅ Neutral domain types + subsystem contracts; tested config loader (`src/domain/`, `src/config.ts`).
+- ✅ **Auth core:** Entra credential-source discovery, MSAL public-client (consent + silent refresh),
+  secure token store (`0600`/`0700`, atomic + cross-process-locked), account-selection registry.
+- ✅ **Account-management CLI:** `outlook-mcp-auth connect | list | remove`.
+- ✅ **C1 `list_accounts`** MCP tool (with behavioural annotations), served over stdio.
 
-**Not yet implemented:** the eight capabilities (C1–C8), MSAL consent flow, secure token store, and
-the Microsoft Graph client. These are designed in `doc/architecture.md` §13 and tracked as _Planned_
-in the traceability matrix. They land in subsequent build phases once this design is approved.
+**Not yet implemented:** capabilities **C2–C8** (search, read, draft, send, labels, organise) and the
+Microsoft Graph client (timeout/retry/error-mapping). These are designed in `doc/architecture.md` §13
+(build phases 2–4) and tracked as _Planned_ in the traceability matrix.
+
+> Tests mock Microsoft Graph and MSAL. Live `§13` acceptance — real browser consent and Graph calls —
+> requires an Entra app registration + Outlook mailboxes and is run locally by the operator.
 
 ---
 
@@ -71,6 +74,28 @@ All operational knobs are environment variables (see [`.env.example`](./.env.exa
 | `OUTLOOK_MCP_ATTACHMENTS_DIR`    | allow-list for `path` attachments             | unset (disabled) |
 | `OUTLOOK_MCP_LOCK_TIMEOUT_MS`    | token-store lock wait                         | `12000`          |
 | `OUTLOOK_MCP_REQUEST_TIMEOUT_MS` | per-Graph-call timeout                        | `30000`          |
+
+### Connecting a mailbox
+
+1. Register a **public-client** app in Entra ID with the redirect URI `http://localhost` and the
+   delegated scopes `Mail.ReadWrite`, `Mail.Send`, `User.Read`, `offline_access`.
+2. Drop a `credentials*.json` into the data dir (or point `OUTLOOK_OAUTH_CREDENTIALS` at it):
+
+   ```json
+   { "clientId": "<application-client-id>", "tenant": "common" }
+   ```
+
+   Multiple `credentials*.json` files are auto-discovered, so accounts under different app
+   registrations each refresh with the client that authorised them.
+
+3. Connect, list, and remove mailboxes:
+
+   ```bash
+   outlook-mcp-auth connect            # opens the browser for consent
+   outlook-mcp-auth connect --source acme   # pick a specific app registration
+   outlook-mcp-auth list
+   outlook-mcp-auth remove user@example.com
+   ```
 
 ### Security posture
 

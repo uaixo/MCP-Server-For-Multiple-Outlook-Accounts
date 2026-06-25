@@ -3,44 +3,77 @@
  * MCP server entry point (default transport: stdio, launched by the MCP host —
  * NFR-OPS-2).
  *
- * STATUS: scaffold. The server starts and reports state to stderr, but NO
- * capability tools (C1–C8, spec §5/§6) are registered yet — they are added in
- * the build phase. This file establishes the transport wiring and the startup
- * contract (report connected accounts to stderr) only.
+ * Phase 1: registers C1 `list_accounts`. Remaining capabilities (C2–C8) are
+ * added in later phases (see doc/architecture.md §13).
  */
 
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "./config.js";
+import { FileTokenStore } from "./auth/tokenStore.js";
+import { FileAccountRegistry } from "./auth/accountRegistry.js";
+import { listAccounts } from "./capabilities/listAccounts.js";
+import type { AccountRegistry } from "./domain/contracts.js";
 
-export function createServer(): McpServer {
+export interface ServerDeps {
+  readonly registry: AccountRegistry;
+}
+
+export function createServer(deps: ServerDeps): McpServer {
   const server = new McpServer({
     name: "mcp-server-for-multiple-outlook-accounts",
     version: "0.1.0",
   });
 
-  // TODO(build): register C1–C8 tools here, each with MCP behavioural
-  // annotations (readOnlyHint / destructiveHint / idempotentHint /
-  // openWorldHint). send_message and organize_mail MUST be destructiveHint:true
-  // (NFR-OPS-4). See doc/architecture.md §"Tool registration".
+  // C1 — list_accounts. No account selector (FR-ID-1: every tool EXCEPT this).
+  server.registerTool(
+    "list_accounts",
+    {
+      title: "List connected accounts",
+      description:
+        "List the Outlook / Microsoft 365 mailboxes connected to this server. " +
+        "Use the returned identities as the 'account' selector for other tools.",
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false, // closed-world: enumerates a fixed local set.
+      },
+    },
+    async () => {
+      const result = await listAccounts(deps.registry);
+      return {
+        content: [{ type: "text", text: result.summary }],
+        structuredContent: result.structured as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  // TODO(phase 2+): register C2–C8. send_message and organize_mail MUST be
+  // destructiveHint:true (NFR-OPS-4).
 
   return server;
 }
 
 async function main(): Promise<void> {
-  // Validate configuration early so a misconfigured env fails fast and clearly.
-  loadConfig();
+  const config = loadConfig();
+  const store = new FileTokenStore({
+    dataDir: config.dataDir,
+    lockTimeoutMs: config.lockTimeoutMs,
+  });
+  const registry = new FileAccountRegistry(store);
 
-  const server = createServer();
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const server = createServer({ registry });
+  await server.connect(new StdioServerTransport());
 
-  // Startup status goes to stderr so it never corrupts the stdio JSON-RPC
-  // channel (NFR-OPS-2). Connected-account enumeration is wired in the build
-  // phase once the token store / account registry land.
+  // Report connected accounts to stderr (NFR-OPS-2) — never stdout (it carries
+  // the JSON-RPC channel) and never secrets (NFR-SEC-6).
+  const accounts = await registry.list();
   process.stderr.write(
-    "[outlook-mcp] scaffold running on stdio — no capability tools registered yet.\n",
+    `[outlook-mcp] ready on stdio — connected accounts: ${
+      accounts.length ? accounts.map((a) => a.displayId).join(", ") : "none"
+    }\n`,
   );
 }
 

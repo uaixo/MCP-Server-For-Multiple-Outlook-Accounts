@@ -1,0 +1,6 @@
+dist/
+node_modules/
+coverage/
+
+# Authored markdown (specs + design docs) — hand-aligned tables, not code.
+doc/

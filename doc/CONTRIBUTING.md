@@ -19,6 +19,11 @@ docs); the remaining work is the **live acceptance** runs the operator performs 
 Entra app registration + Outlook mailbox (spec §13.2/§13.3 — they need real credentials this
 environment can't hold). See [`ONBOARDING.md`](./ONBOARDING.md) to set that up.
 
+> **Picking this up cold?** [`HANDOVER.md`](./HANDOVER.md) is the point-in-time snapshot: everything
+> delivered (incl. two code-review rounds), the code orientation, and the outstanding-work checklist
+> (the live run + known limitations + optional enhancements). Start there, then this guide for *how
+> we work*.
+
 The authoritative roadmap is [`architecture.md` §13](./architecture.md). Per-requirement status
 (done / partial / planned, with the module + test that satisfies each) is in
 [`traceability-matrix.md`](./traceability-matrix.md).

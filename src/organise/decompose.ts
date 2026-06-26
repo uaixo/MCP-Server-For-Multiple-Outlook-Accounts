@@ -1,0 +1,97 @@
+/**
+ * The C8 label-decomposition fan-out (FR-C8-6; architecture §6, provider-mapping
+ * §3.1) — the core Outlook porting risk.
+ *
+ * Gmail collapses tagging, foldering, and read-state into one "label". Outlook
+ * keeps them separate, so ONE neutral organise intent becomes a COMBINATION of
+ * Graph operations against a target message:
+ *   - category add/remove + read-state → a single `PATCH /me/messages/{id}`
+ *     (Graph's category PATCH replaces the whole array, so we merge against the
+ *     message's current categories here); and
+ *   - archive (remove from Inbox) → `POST /me/messages/{id}/move` to Archive.
+ *
+ * This module is pure (no I/O): the capability fetches each target message's
+ * current state, calls `decompose`, and runs the returned operations.
+ */
+
+import type {
+  GraphOperation,
+  GraphRequest,
+  OrganiseIntent,
+  OrganiseTargetMessage,
+} from "../domain/contracts.js";
+
+/** Graph well-known folder id for the Archive location. */
+export const ARCHIVE_FOLDER_ID = "archive";
+
+/**
+ * Merge a category change against the message's current categories. Adds win
+ * insertion order; a name in both add and remove ends up removed. The result is
+ * the full array Graph's PATCH will set (FR-C8 idempotent: re-applying converges).
+ */
+export function mergeCategories(
+  current: readonly string[],
+  add: readonly string[],
+  remove: readonly string[],
+): string[] {
+  const result = new Map<string, string>();
+  for (const c of current) result.set(c, c);
+  for (const a of add) result.set(a, a);
+  for (const r of remove) result.delete(r);
+  return [...result.values()];
+}
+
+/** Categories a message will carry after the intent is applied (for the union report). */
+export function resultingCategories(
+  message: OrganiseTargetMessage,
+  intent: OrganiseIntent,
+): string[] {
+  return mergeCategories(
+    message.categories ?? [],
+    intent.addLabelIds ?? [],
+    intent.removeLabelIds ?? [],
+  );
+}
+
+function describePatch(body: { categories?: string[]; isRead?: boolean }): string {
+  const parts: string[] = [];
+  if (body.categories !== undefined) parts.push(`categories=[${body.categories.join(", ")}]`);
+  if (body.isRead !== undefined) parts.push(body.isRead ? "mark read" : "mark unread");
+  return parts.join("; ");
+}
+
+export function decompose(
+  message: OrganiseTargetMessage,
+  intent: OrganiseIntent,
+): GraphOperation[] {
+  const ops: GraphOperation[] = [];
+  const path = `/me/messages/${encodeURIComponent(message.id)}`;
+
+  // 1) categories[] + isRead collapse into one PATCH.
+  const add = intent.addLabelIds ?? [];
+  const remove = intent.removeLabelIds ?? [];
+  const wantCategoryChange = add.length > 0 || remove.length > 0;
+
+  const body: { categories?: string[]; isRead?: boolean } = {};
+  if (wantCategoryChange) {
+    body.categories = mergeCategories(message.categories ?? [], add, remove);
+  }
+  if (intent.markRead !== undefined) body.isRead = intent.markRead;
+  if (body.categories !== undefined || body.isRead !== undefined) {
+    const req: GraphRequest = { method: "PATCH", path, body, retryClass: "safe" };
+    ops.push({ description: `${describePatch(body)} on ${message.id}`, request: req });
+  }
+
+  // 2) archive = move out of the Inbox (Graph has no combined modify+move call).
+  if (intent.archive) {
+    const req: GraphRequest = {
+      method: "POST",
+      path: `${path}/move`,
+      body: { destinationId: ARCHIVE_FOLDER_ID },
+      retryClass: "safe",
+    };
+    ops.push({ description: `move ${message.id} to Archive`, request: req });
+  }
+
+  return ops;
+}

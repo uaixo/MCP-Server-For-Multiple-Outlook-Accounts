@@ -11,8 +11,8 @@
 | 1 | Auth core + secure token store + CLI + `list_accounts` (C1) | ✅ merged |
 | 2 | Graph client + `search_conversations` (C2) + `read_conversation` (C3) | ✅ merged |
 | 3 | Write path — `create_draft` (C4) + `send_message` (C5) | ✅ done |
-| **4** | **Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8)** | ◻ **next — start here** |
-| 5 | Hardening & onboarding docs | ◻ planned |
+| 4 | Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8) | ✅ done |
+| **5** | **Hardening & onboarding docs** | ◻ **next — start here** |
 
 The authoritative roadmap is [`architecture.md` §13](./architecture.md). Per-requirement status
 (done / partial / planned, with the module + test that satisfies each) is in
@@ -110,6 +110,36 @@ What shipped (each module + its test, with the requirements it satisfies):
 > **Note (live-confirmed):** the `FetchGraphClient` was extended to treat 202/empty responses as a
 > no-body success (`sendMail` returns 202). Graph's acceptance of the `In-Reply-To`/`References`
 > internet headers and the effective outgoing-size limit are confirmed by the operator's live run.
+
+## 6a. Phase 4 — the organise path (C6/C7/C8) ✅ done
+
+References: `provider-mapping.md` §3 (C6/C7 rows) + §3.1 (the C8 fan-out) + §7 item 1;
+`architecture.md` §6 (the decomposition table). The decomposition is the core porting risk.
+
+What shipped:
+
+- [x] `src/util/bounded.ts` — bounded-concurrency runner for the per-message fan-out, preserving
+      order. **NFR-REL-4.** → `test/bounded.test.ts`
+- [x] `src/graph/paginate.ts` — follow `@odata.nextLink` to a hard item cap (shared by C6 + C8).
+- [x] `src/capabilities/listLabels.ts` (C6) — combine `GET /me/outlook/masterCategories` (tags) +
+      `GET /me/mailFolders` (folders); category id = name, folder id = id; flag system folders.
+      **FR-C6-1/2.** → `test/listLabels.test.ts`
+- [x] `src/capabilities/createLabel.ts` (C7) — `POST masterCategories` (category) or
+      `POST mailFolders` / `…/childFolders` (folder, nestable); `nonDuplicable`. **FR-C7-1.**
+      → `test/createLabel.test.ts`
+- [x] `src/organise/decompose.ts` — pure fan-out: merge categories[] + isRead into one PATCH, plus
+      a `move` op for archive. **FR-C8-6.** → `test/decompose.test.ts`
+- [x] `src/capabilities/organizeMail.ts` (C8) — validate exactly-one-target + at-least-one-change;
+      resolve a single message or enumerate a conversation; fan out via `decompose` under the
+      limiter; report the union of resulting labels. **FR-C8-1..6.** → `test/organizeMail.test.ts`
+- [x] `src/index.ts` — register `list_labels` (read), `create_label` (write), `organize_mail`
+      (**`destructiveHint: true`, `idempotentHint: true`**). **NFR-OPS-4.**
+- [x] Docs — C6/C7/C8 + NFR-REL-4 rows flipped to ✅; README + architecture §13 + this guide updated.
+
+> **Scope note (live-confirmed):** category PATCH replaces the whole `categories[]`, so C8 fetches
+> each target's current categories and merges. Top-level folders are listed; nested child folders
+> are not recursively enumerated in v1. The `move`/PATCH fan-out and well-known `destinationId:
+> "archive"` are confirmed against the real API by the operator.
 
 ## 7. Decisions already made (don't relitigate without reason)
 

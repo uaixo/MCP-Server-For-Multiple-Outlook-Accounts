@@ -320,7 +320,11 @@ credentials this environment cannot hold).
    sends), allow-listed/TOCTOU-safe attachments, header-injection stripping, and local
    outgoing-size validation. (FR-C4/C5, NFR-SEC-3/4/5, NFR-PERF-3, NFR-REL-3) — 113 tests,
    Graph/MSAL mocked.
-4. **Organise path** — labels listing/create, decompose fan-out, **C6/C7/C8**. (FR-C6/C7/C8)
+4. ✅ **Organise path (done)** — **C6** `list_labels` (categories + folders), **C7** `create_label`
+   (category or folder, with nesting), and **C8** `organize_mail` with the label-decomposition
+   fan-out (category PATCH / `move` / read-state) applied per message under a bounded concurrency
+   limit, reporting the conversation-wide union. (FR-C6/C7/C8, NFR-REL-4) — 139 tests, Graph/MSAL
+   mocked.
 5. **Hardening & docs** — full error mapping, onboarding docs (CON-3), cross-platform check.
 
 ---

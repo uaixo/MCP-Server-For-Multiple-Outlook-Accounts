@@ -4,8 +4,8 @@
  * NFR-OPS-2).
  *
  * Phase 1: C1 list_accounts. Phase 2: C2 search_conversations, C3
- * read_conversation. Remaining capabilities (C4–C8) are added in later phases
- * (see doc/architecture.md §13).
+ * read_conversation. Phase 3: C4 create_draft, C5 send_message. Phase 4: C6
+ * list_labels, C7 create_label, C8 organize_mail (see doc/architecture.md §13).
  */
 
 import { fileURLToPath } from "node:url";
@@ -22,16 +22,26 @@ import { searchConversations } from "./capabilities/searchConversations.js";
 import { readConversation } from "./capabilities/readConversation.js";
 import { createDraft } from "./capabilities/createDraft.js";
 import { sendMessage } from "./capabilities/sendMessage.js";
+import { listLabels } from "./capabilities/listLabels.js";
+import { createLabel } from "./capabilities/createLabel.js";
+import { organizeMail } from "./capabilities/organizeMail.js";
 import type { OutgoingArgs } from "./capabilities/outgoing.js";
 import { FsAttachmentReader } from "./mail/attachments.js";
+import { BoundedConcurrency } from "./util/bounded.js";
 import { MAX_PAGE_SIZE } from "./output/contract.js";
-import type { AccountRegistry, AttachmentReader, GraphClient } from "./domain/contracts.js";
+import type {
+  AccountRegistry,
+  AttachmentReader,
+  ConcurrencyLimiter,
+  GraphClient,
+} from "./domain/contracts.js";
 import type { ToolResult } from "./domain/types.js";
 
 export interface ServerDeps {
   readonly registry: AccountRegistry;
   readonly graph: GraphClient;
   readonly attachments: AttachmentReader;
+  readonly limiter: ConcurrencyLimiter;
 }
 
 /** Tool-result envelope: dual channel (FR-OUT-1) with errors surfaced as tool errors (FR-ERR-1). */
@@ -75,6 +85,15 @@ const SEND_ANNOTATIONS = {
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+// Organise: destructive (removals / moves to trash/junk are non-additive) but
+// idempotent — re-applying the same change set converges (FR-C8-5 / NFR-OPS-4).
+const ORGANISE_ANNOTATIONS = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
   openWorldHint: true,
 } as const;
 
@@ -229,7 +248,83 @@ export function createServer(deps: ServerDeps): McpServer {
     (args) => toToolResult(() => sendMessage(deps, toOutgoingArgs(args))),
   );
 
-  // TODO(phase 4): C6–C8. organize_mail MUST be destructiveHint:true (NFR-OPS-4).
+  // C6 — list_labels (read-only; FR-C6-*).
+  server.registerTool(
+    "list_labels",
+    {
+      title: "List organisation labels",
+      description:
+        "List the account's categories (tags) and mail folders (locations), each with a stable " +
+        "id, display name, kind, and whether it is a system label. Use these ids with organize_mail.",
+      inputSchema: { account: z.string().optional() },
+      annotations: READ_ANNOTATIONS,
+    },
+    (args) => toToolResult(() => listLabels(deps, { account: args.account })),
+  );
+
+  // C7 — create_label (write, additive; FR-C7-*).
+  server.registerTool(
+    "create_label",
+    {
+      title: "Create a label",
+      description:
+        "Create a new category (tag) or mail folder (location). kind='category' makes a tag " +
+        "(optionally with a colour preset); kind='folder' makes a folder, nested under " +
+        "parent_folder_id when given.",
+      inputSchema: {
+        account: z.string().optional(),
+        name: z.string(),
+        kind: z.enum(["category", "folder"]).optional(),
+        color: z.string().optional(),
+        parent_folder_id: z.string().optional(),
+      },
+      annotations: WRITE_ANNOTATIONS,
+    },
+    (args) =>
+      toToolResult(() =>
+        createLabel(deps, {
+          account: args.account,
+          name: args.name,
+          kind: args.kind,
+          color: args.color,
+          parentFolderId: args.parent_folder_id,
+        }),
+      ),
+  );
+
+  // C8 — organize_mail (destructive; FR-C8-*).
+  server.registerTool(
+    "organize_mail",
+    {
+      title: "Organise mail",
+      description:
+        "Apply organisation changes to exactly one target — a conversation OR a single message. " +
+        "Add/remove category labels, mark read/unread, and/or archive (remove from Inbox). " +
+        "At least one change is required. Applied to a conversation, it affects every message.",
+      inputSchema: {
+        account: z.string().optional(),
+        conversation_id: z.string().optional(),
+        message_id: z.string().optional(),
+        add_labels: z.array(z.string()).optional(),
+        remove_labels: z.array(z.string()).optional(),
+        mark_read: z.boolean().optional(),
+        archive: z.boolean().optional(),
+      },
+      annotations: ORGANISE_ANNOTATIONS,
+    },
+    (args) =>
+      toToolResult(() =>
+        organizeMail(deps, {
+          account: args.account,
+          conversationId: args.conversation_id,
+          messageId: args.message_id,
+          addLabels: args.add_labels,
+          removeLabels: args.remove_labels,
+          markRead: args.mark_read,
+          archive: args.archive,
+        }),
+      ),
+  );
 
   return server;
 }
@@ -246,8 +341,9 @@ async function main(): Promise<void> {
     getToken: createMsalTokenProvider({ config, tokenStore: store }),
   });
   const attachments = new FsAttachmentReader(config.attachmentsAllowList);
+  const limiter = new BoundedConcurrency();
 
-  const server = createServer({ registry, graph, attachments });
+  const server = createServer({ registry, graph, attachments, limiter });
   await server.connect(new StdioServerTransport());
 
   // Report connected accounts to stderr (NFR-OPS-2) — never stdout (JSON-RPC) or secrets (NFR-SEC-6).

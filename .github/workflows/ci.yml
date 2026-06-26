@@ -1,0 +1,69 @@
+name: CI
+
+# Gate typecheck, formatting, tests, and the build on every push and pull
+# request. The test toolchain (vitest) requires Node >= 20, so tests run on
+# Node 20 and 22 across Linux/macOS/Windows (NFR-OPS-1). A separate Node 18
+# job smoke-tests the published runtime floor (engines: node >= 18).
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: build & test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  runtime-node18:
+    name: runtime smoke (node 18)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      # vitest needs Node >= 20, so this job validates only that the published
+      # artifact builds and runs on the declared Node 18 floor — not the tests.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke-test the CLI on Node 18
+        env:
+          OUTLOOK_MCP_DATA_DIR: ${{ runner.temp }}/outlook-mcp-smoke
+        run: node dist/cli/index.js list

@@ -1,0 +1,113 @@
+# Contributing & Handoff Guide
+
+> Practical guide for anyone picking up this project. The **what to build** lives in the specs and
+> design docs; this file captures the **how we work** and the **current pick-up point** so a new
+> contributor can continue without prior context.
+
+## 1. Where we are right now
+
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 1 | Auth core + secure token store + CLI + `list_accounts` (C1) | ✅ merged |
+| 2 | Graph client + `search_conversations` (C2) + `read_conversation` (C3) | ✅ merged |
+| **3** | **Write path — `create_draft` (C4) + `send_message` (C5)** | ◻ **next — start here** |
+| 4 | Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8) | ◻ planned |
+| 5 | Hardening & onboarding docs | ◻ planned |
+
+The authoritative roadmap is [`architecture.md` §13](./architecture.md). Per-requirement status
+(done / partial / planned, with the module + test that satisfies each) is in
+[`traceability-matrix.md`](./traceability-matrix.md).
+
+## 2. The documents and how they relate
+
+- [`business-specification.md`](./business-specification.md) — provider-neutral **contract**
+  (FR/NFR/CON IDs). This is what the build must satisfy.
+- [`provider-mapping.md`](./provider-mapping.md) — how each neutral requirement binds to **Microsoft
+  Graph** (the build target). Start here for the C4/C5 Graph calls and the §7 watch-items.
+- [`architecture.md`](./architecture.md) — the design: module layout (§3), retry classes (§8),
+  security model (§9), the organise fan-out table (§6), search translation (§7), build roadmap (§13).
+- [`traceability-matrix.md`](./traceability-matrix.md) — the live checklist: every requirement →
+  module → test → status.
+
+## 3. How we work (process)
+
+- **Spec-driven:** every module/test cites the FR/NFR ID it satisfies; update the traceability
+  matrix as you complete items.
+- **One PR per phase** (or smaller slice). Open it as a **draft**, let CI run, mark it **ready**, and
+  **merge when green**.
+- **Branching:** cut a feature branch from `main` (any name; the automation used
+  `claude/<...>`). Never commit straight to `main`.
+- **Commits:** clear, descriptive messages. Keep secrets/tokens out of the repo (the gitleaks CI
+  will fail the build otherwise).
+- After pushing, open a draft PR; address CI/review feedback; merge once all checks pass.
+
+## 4. Local setup & commands
+
+Requires **Node ≥ 20** for development (the test runner, vitest, needs ≥ 20; the *published server*
+targets Node ≥ 18).
+
+```bash
+npm install
+npm run typecheck      # tsc --noEmit
+npm test               # vitest (Graph + MSAL are mocked; no live creds)
+npm run build          # compile to dist/
+npm run format:check   # prettier (run `npm run format` to fix)
+```
+
+**CI gates** (both must be green before merge):
+
+- `.github/workflows/ci.yml` — build/test matrix (ubuntu/macOS/windows × Node 20 & 22) + a Node-18
+  build/CLI smoke.
+- `.github/workflows/secret-scan.yml` — gitleaks.
+
+## 5. Test strategy
+
+Mocked unit + integration. Microsoft Graph is mocked at the `fetch` boundary; MSAL at the client
+boundary — so **no live credentials are needed** in CI. **Live** acceptance (real browser consent +
+real Graph calls, spec §13) is run **locally by the operator** with a real Entra app registration +
+Outlook mailbox; this is where the `$search`/`$filter`, `$count`/`ConsistencyLevel`, and send
+behaviour get confirmed against the real API.
+
+## 6. Picking up Phase 3 — the write path (C4 `create_draft`, C5 `send_message`)
+
+References: `provider-mapping.md` §3 (C4/C5 rows) and §7 item 4 (send semantics / no-duplicate);
+`architecture.md` §8 (retry classes) and §9 (attachment guard, header-injection safety). Mirror the
+existing capability shape in `src/capabilities/readConversation.ts` and the tool wiring +
+`toToolResult` envelope in `src/index.ts`.
+
+Suggested order (each ◻ is a module + its test, with the requirements it satisfies):
+
+- [ ] `src/mail/sanitize.ts` — strip CR/LF from header-bound values (recipients, subject, filenames)
+      so a display name/subject can't inject headers. **NFR-SEC-5.** → `test/sanitize.test.ts`
+- [ ] `src/mail/compose.ts` — build the Graph message JSON: parse recipients (`addr` or
+      `Display Name <addr>`), `to`/`cc`/`bcc`, subject, body + `is_html`; reply threading
+      (`POST /me/messages/{id}/createReply` or `In-Reply-To`/`References`), default `Re:` subject;
+      validate outgoing size locally before the call. **FR-C4-1/4/5, NFR-PERF-3.** Uses `sanitize`.
+      → `test/compose.test.ts`
+- [ ] `src/mail/attachments.ts` — attachment input is **exactly one of** a local `path` **or** inline
+      base64. `path` reads are **disabled unless** within `OUTLOOK_MCP_ATTACHMENTS_DIR`; fully resolve
+      symlinks/`..` and validate the real path is inside an allowed dir **before** reading; open the
+      file **once** and read via the handle (TOCTOU-safe). Infer filename/MIME; require filename for
+      inline. **NFR-SEC-3/4, FR-C4-3.** (`config.attachmentsAllowList` already exists.)
+      → `test/attachments.test.ts`
+- [ ] `src/capabilities/createDraft.ts` (C4) — `POST /me/messages` (`isDraft`); attachments as
+      `fileAttachment` resources; **retryClass `nonDuplicable`**; do not send. **FR-C4-1..4.**
+      → `test/createDraft.test.ts`
+- [ ] `src/capabilities/sendMessage.ts` (C5) — `POST /me/sendMail` (single call to avoid an ambiguous
+      two-step window); **retryClass `nonDuplicable`** so only a pre-processing 429 is retried —
+      never an ambiguous 5xx/timeout → **no duplicate sends**. **FR-C5-1/2/4, NFR-REL-3.** Add a
+      forced-transient-failure test asserting the send is attempted once. → `test/sendMessage.test.ts`
+- [ ] `src/index.ts` — register `create_draft` (write, non-destructive) and `send_message`
+      (**`destructiveHint: true`**) with zod input schemas + the account selector. **NFR-OPS-4.**
+- [ ] Docs — flip the Phase-3 rows in `traceability-matrix.md` to ✅, update the README capabilities
+      table, and mark `architecture.md` §13 phase 3 done.
+
+## 7. Decisions already made (don't relitigate without reason)
+
+- **Graph layer** is a thin `fetch` wrapper (not the official SDK) so the no-duplicate-send retry
+  rule is under our control. Use `GraphRequest.retryClass: "nonDuplicable"` for send/draft.
+- **Search:** Graph can't combine `$search` and `$filter` in one request — see `search/translate.ts`.
+- **Identity** is keyed by the MSAL `account.username` (UPN), lower-cased.
+- **Windows CI:** the POSIX file-mode test is skipped on `win32` (Windows uses ACLs); `.gitattributes`
+  forces LF so Prettier is stable.
+- **Tooling:** TypeScript 6.0.3, ESM (`nodenext`), vitest, Prettier. Node ≥ 20 to run tests.

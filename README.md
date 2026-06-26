@@ -11,6 +11,7 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 - 🔌 [`doc/provider-mapping.md`](./doc/provider-mapping.md) — how neutral requirements bind to Microsoft Graph.
 - 🏗️ [`doc/architecture.md`](./doc/architecture.md) — how this variant is designed and built.
 - ✅ [`doc/traceability-matrix.md`](./doc/traceability-matrix.md) — every requirement → module → test.
+- 🤝 [`doc/CONTRIBUTING.md`](./doc/CONTRIBUTING.md) — handoff guide: current pick-up point, workflow, and the next-phase checklist.
 
 ---
 

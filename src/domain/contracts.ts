@@ -16,6 +16,7 @@ import type {
   ConversationDetail,
   ConversationSummary,
   OrganisationLabel,
+  ResolvedAttachment,
   ResultCursor,
 } from "./types.js";
 
@@ -129,7 +130,7 @@ export interface OrganiseIntent {
 
 /** Reads attachment bytes safely: path reads only within the allow-list, opened once and validated via the handle (NFR-SEC-3/4). */
 export interface AttachmentReader {
-  read(input: AttachmentInput): Promise<{ filename: string; mimeType: string; bytes: Uint8Array }>;
+  read(input: AttachmentInput): Promise<ResolvedAttachment>;
 }
 
 /**
@@ -138,9 +139,11 @@ export interface AttachmentReader {
  */
 export type {
   Account,
+  AttachmentInput,
   ComposeInput,
   ConversationDetail,
   ConversationSummary,
   OrganisationLabel,
+  ResolvedAttachment,
   ResultCursor,
 };

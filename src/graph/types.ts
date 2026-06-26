@@ -25,6 +25,45 @@ export interface GraphMessage {
   body?: { contentType?: "html" | "text"; content?: string };
   categories?: string[];
   isRead?: boolean;
+  /** RFC 5322 Message-ID; used to thread a reply via In-Reply-To/References. */
+  internetMessageId?: string;
+  /** Returned by Graph after a draft is created (a link to open it in Outlook). */
+  webLink?: string;
+}
+
+/** A Graph `fileAttachment` resource (the `@odata.type` discriminator is required). */
+export interface GraphFileAttachment {
+  "@odata.type": "#microsoft.graph.fileAttachment";
+  name: string;
+  contentType: string;
+  /** Base64-encoded file bytes. */
+  contentBytes: string;
+}
+
+/** A custom internet (MIME) header carried on an outgoing message. */
+export interface GraphInternetMessageHeader {
+  name: string;
+  value: string;
+}
+
+/**
+ * An outgoing message resource — the body of `POST /me/messages` (draft) and the
+ * `message` field of `POST /me/sendMail`. Only the fields the write path sets are
+ * modelled; everything is optional because the compose layer omits empties.
+ */
+export interface GraphOutgoingMessage {
+  subject?: string;
+  body: { contentType: "Text" | "HTML"; content: string };
+  toRecipients: GraphRecipient[];
+  ccRecipients?: GraphRecipient[];
+  bccRecipients?: GraphRecipient[];
+  attachments?: GraphFileAttachment[];
+  internetMessageHeaders?: GraphInternetMessageHeader[];
+}
+
+/** Build a Graph recipient resource from an address and optional display name. */
+export function toGraphRecipient(address: string, name?: string): GraphRecipient {
+  return { emailAddress: name ? { name, address } : { address } };
 }
 
 export interface GraphListResponse<T> {

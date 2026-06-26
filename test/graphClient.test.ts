@@ -74,6 +74,18 @@ describe("FetchGraphClient (NFR-REL-1, FR-ERR-1)", () => {
     expect(out).toBeUndefined();
   });
 
+  it("returns undefined for 202 Accepted with an empty body (sendMail)", async () => {
+    const fetchImpl = vi.fn(async () => new Response("", { status: 202 }));
+    const c = client(fetchImpl as unknown as typeof fetch);
+    const out = await c.request(account, {
+      method: "POST",
+      path: "/me/sendMail",
+      body: { message: {}, saveToSentItems: true },
+      retryClass: "nonDuplicable",
+    });
+    expect(out).toBeUndefined();
+  });
+
   it("maps a thrown timeout to a GraphError(timeout)", async () => {
     const fetchImpl = vi.fn(async () => {
       throw Object.assign(new Error("aborted"), { name: "TimeoutError" });

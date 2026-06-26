@@ -89,6 +89,18 @@ export interface AttachmentInput {
   readonly contentBase64?: string;
 }
 
+/**
+ * An attachment after its bytes have been resolved (read from an allow-listed
+ * path or decoded from inline base64) with a definite filename and MIME type.
+ * The bytes are handed to the compose layer, which encodes them as a Graph
+ * `fileAttachment` and counts them toward the outgoing-size limit.
+ */
+export interface ResolvedAttachment {
+  readonly filename: string;
+  readonly mimeType: string;
+  readonly bytes: Uint8Array;
+}
+
 /** Composition inputs shared by create_draft (C4) and send_message (C5). */
 export interface ComposeInput {
   readonly to: RecipientInput[];

@@ -17,9 +17,9 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 
 ---
 
-## Project status: phase 5 (hardening + onboarding)
+## Project status: feature-complete (offline build)
 
-Built with **TypeScript 6.0.3**; build, typecheck, tests (148), and format all green. All eight
+Built with **TypeScript 6.0.3**; build, typecheck, tests (179), and format all green. All eight
 capabilities are implemented and the offline build is feature-complete. What exists today:
 
 - ✅ Architecture design + requirements traceability matrix (`doc/`).
@@ -32,12 +32,15 @@ capabilities are implemented and the offline build is feature-complete. What exi
   Gmail-style search-operator translation and bounded, truncating output.
 - ✅ **Write tools:** `create_draft` (C4) and `send_message` (C5) — recipient parsing
   (`Display Name <addr>`), header-injection stripping, allow-listed/TOCTOU-safe attachments,
-  local outgoing-size validation, reply threading, and a single `sendMail` call under the
-  `nonDuplicable` retry policy so a retry can never double-deliver.
+  local outgoing-size validation, and reply threading. Small attachments ride inline; large ones
+  (> ~3 MB) upload to the draft via a Graph **upload session**, so send becomes
+  create-draft → upload → send with the final `/send` under the `nonDuplicable` retry policy —
+  a retry can never double-deliver.
 - ✅ **Organise tools:** `list_labels` (C6), `create_label` (C7), and `organize_mail` (C8) — the
   label-decomposition fan-out that maps one neutral organise request to the right mix of Graph
-  category-PATCH / `move` / read-state calls, applied per message across a conversation under a
-  bounded concurrency limit, reporting the union of resulting labels.
+  category-PATCH / read-state / `move` calls (archive, **trash**, **junk** — mutually exclusive),
+  applied per message across a conversation under a bounded concurrency limit, reporting the union
+  of resulting labels. `list_labels` enumerates folders recursively (full paths).
 - ✅ **Hardening + onboarding:** a secret-redaction boundary so tokens/credentials can never reach
   the logs (NFR-SEC-6), and the operator [onboarding guide](./doc/ONBOARDING.md) (Entra app
   registration, unverified-app consent, the connect CLI).

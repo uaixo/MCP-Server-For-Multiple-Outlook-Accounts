@@ -11,14 +11,15 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 - 🔌 [`doc/provider-mapping.md`](./doc/provider-mapping.md) — how neutral requirements bind to Microsoft Graph.
 - 🏗️ [`doc/architecture.md`](./doc/architecture.md) — how this variant is designed and built.
 - ✅ [`doc/traceability-matrix.md`](./doc/traceability-matrix.md) — every requirement → module → test.
+- 🚀 [`doc/ONBOARDING.md`](./doc/ONBOARDING.md) — operator guide: register an Entra app, handle consent, connect a mailbox.
 - 🤝 [`doc/CONTRIBUTING.md`](./doc/CONTRIBUTING.md) — handoff guide: current pick-up point, workflow, and the next-phase checklist.
 
 ---
 
-## Project status: phase 4 (organise path)
+## Project status: phase 5 (hardening + onboarding)
 
-Built with **TypeScript 6.0.3**; build, typecheck, tests (139), and format all green. All eight
-capabilities are implemented. What exists today:
+Built with **TypeScript 6.0.3**; build, typecheck, tests (148), and format all green. All eight
+capabilities are implemented and the offline build is feature-complete. What exists today:
 
 - ✅ Architecture design + requirements traceability matrix (`doc/`).
 - ✅ **Auth core:** Entra credential-source discovery, MSAL public-client (consent + silent refresh),
@@ -36,9 +37,12 @@ capabilities are implemented. What exists today:
   label-decomposition fan-out that maps one neutral organise request to the right mix of Graph
   category-PATCH / `move` / read-state calls, applied per message across a conversation under a
   bounded concurrency limit, reporting the union of resulting labels.
+- ✅ **Hardening + onboarding:** a secret-redaction boundary so tokens/credentials can never reach
+  the logs (NFR-SEC-6), and the operator [onboarding guide](./doc/ONBOARDING.md) (Entra app
+  registration, unverified-app consent, the connect CLI).
 
-**Remaining:** phase 5 — hardening (full error mapping, cross-platform check) and onboarding docs.
-See `doc/architecture.md` §13.
+**Remaining:** the **live** acceptance runs (real browser consent + real Graph calls) that the
+operator performs against an Entra app registration + Outlook mailbox. See `doc/architecture.md` §13.
 
 > Tests mock Microsoft Graph and MSAL. Live `§13` acceptance — real browser consent and Graph calls —
 > requires an Entra app registration + Outlook mailboxes and is run locally by the operator.
@@ -87,6 +91,9 @@ All operational knobs are environment variables (see [`.env.example`](./.env.exa
 | `OUTLOOK_MCP_REQUEST_TIMEOUT_MS` | per-Graph-call timeout                        | `30000`          |
 
 ### Connecting a mailbox
+
+> For the full walkthrough — Entra app registration, the unverified-app consent policy, and
+> troubleshooting — see **[`doc/ONBOARDING.md`](./doc/ONBOARDING.md)**. The short version:
 
 1. Register a **public-client** app in Entra ID with the redirect URI `http://localhost` and the
    delegated scopes `Mail.ReadWrite`, `Mail.Send`, `User.Read`, `offline_access`.

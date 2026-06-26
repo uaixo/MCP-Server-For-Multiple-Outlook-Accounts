@@ -21,6 +21,7 @@ import { join } from "node:path";
 import type { Account } from "../domain/types.js";
 import type { TokenStore } from "../domain/contracts.js";
 import { withLock } from "../util/lock.js";
+import { redact } from "../util/redact.js";
 
 const STORE_VERSION = 1 as const;
 const FILE_MODE = 0o600;
@@ -64,7 +65,8 @@ export class FileTokenStore implements TokenStore {
   constructor(private readonly opts: TokenStoreOptions) {
     this.filePath = join(opts.dataDir, "tokens.json");
     this.lockPath = `${this.filePath}.lock`;
-    this.warn = opts.warn ?? ((m) => process.stderr.write(`${m}\n`));
+    // The default sink redacts before writing so no secret can reach stderr (NFR-SEC-6).
+    this.warn = opts.warn ?? ((m) => process.stderr.write(`${redact(m)}\n`));
   }
 
   async list(): Promise<Account[]> {

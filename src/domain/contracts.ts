@@ -156,6 +156,16 @@ export interface AttachmentReader {
 }
 
 /**
+ * Uploads a large attachment (> the inline limit) to an existing draft message
+ * via a Microsoft Graph upload session — `createUploadSession` then chunked PUTs
+ * to the Graph-issued upload URL. Lifts the ~3 MB inline ceiling toward the
+ * message size cap (provider-mapping §3, attachment notes).
+ */
+export interface AttachmentUploader {
+  upload(account: Account, messageId: string, attachment: ResolvedAttachment): Promise<void>;
+}
+
+/**
  * Re-exports for convenience so capability modules import a single contracts
  * surface. (Capabilities C1–C8 will be added under src/capabilities/.)
  */

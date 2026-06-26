@@ -12,6 +12,7 @@ import type {
   AccountRegistry,
   AttachmentInput,
   AttachmentReader,
+  AttachmentUploader,
   GraphClient,
 } from "../domain/contracts.js";
 import { composeMessage, type ComposedMessage } from "../mail/compose.js";
@@ -21,6 +22,7 @@ export interface WriteDeps {
   readonly registry: AccountRegistry;
   readonly graph: GraphClient;
   readonly attachments: AttachmentReader;
+  readonly uploader: AttachmentUploader;
 }
 
 /** Composition inputs accepted by both write tools (camelCase; tools map snake_case). */

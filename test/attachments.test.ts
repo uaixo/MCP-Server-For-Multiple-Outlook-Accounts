@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, symlink, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FsAttachmentReader } from "../src/mail/attachments.js";
-import { MAX_INLINE_ATTACHMENT_BYTES } from "../src/output/contract.js";
+import { MAX_INLINE_ATTACHMENT_BYTES, MAX_OUTGOING_MESSAGE_BYTES } from "../src/output/contract.js";
 
 let root: string;
 let allowedDir: string;
@@ -139,10 +139,17 @@ describe("FsAttachmentReader — size guard (NFR-PERF-3)", () => {
     expect(toText(out.bytes)).toBe("PDFDATA");
   });
 
-  it("defaults to the inline (~3 MB) attachment limit", async () => {
-    const reader = new FsAttachmentReader([]); // default maxBytes
-    const oversize = Buffer.alloc(MAX_INLINE_ATTACHMENT_BYTES + 1).toString("base64");
-    await expect(reader.read({ contentBase64: oversize, filename: "big.bin" })).rejects.toThrow(
+  it("accepts a file over the inline limit (it will be uploaded via a session)", async () => {
+    const reader = new FsAttachmentReader([]); // default maxBytes = message cap (~25 MB)
+    const big = Buffer.alloc(MAX_INLINE_ATTACHMENT_BYTES + 1).toString("base64");
+    const out = await reader.read({ contentBase64: big, filename: "big.bin" });
+    expect(out.bytes.byteLength).toBe(MAX_INLINE_ATTACHMENT_BYTES + 1);
+  });
+
+  it("rejects a file over the message cap by default", async () => {
+    const reader = new FsAttachmentReader([]); // default maxBytes = MAX_OUTGOING_MESSAGE_BYTES
+    const oversize = Buffer.alloc(MAX_OUTGOING_MESSAGE_BYTES + 1).toString("base64");
+    await expect(reader.read({ contentBase64: oversize, filename: "huge.bin" })).rejects.toThrow(
       /over the .* MB limit/i,
     );
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeMessage, parseRecipient } from "../src/mail/compose.js";
+import { MAX_INLINE_ATTACHMENT_BYTES } from "../src/output/contract.js";
 import type { ComposeInput, ResolvedAttachment } from "../src/domain/contracts.js";
 
 const bytes = (s: string): ResolvedAttachment => ({
@@ -112,5 +113,29 @@ describe("composeMessage — outgoing size guard (NFR-PERF-3)", () => {
   it("reports the computed raw size when within the limit", () => {
     const out = composeMessage({ ...base, body: "12345" }, [bytes("678")]);
     expect(out.sizeBytes).toBe(8);
+  });
+});
+
+describe("composeMessage — inline vs upload split", () => {
+  it("inlines small attachments and defers large ones to uploadAttachments", () => {
+    const big: ResolvedAttachment = {
+      filename: "big.bin",
+      mimeType: "application/octet-stream",
+      bytes: new Uint8Array(MAX_INLINE_ATTACHMENT_BYTES + 1),
+    };
+    const small: ResolvedAttachment = {
+      filename: "s.txt",
+      mimeType: "text/plain",
+      bytes: new Uint8Array(Buffer.from("hi")),
+    };
+
+    const out = composeMessage(base, [big, small]);
+
+    // Small one is inlined; the large one is held back for the upload session.
+    expect(out.message.attachments).toHaveLength(1);
+    expect(out.message.attachments![0]!.name).toBe("s.txt");
+    expect(out.uploadAttachments.map((a) => a.filename)).toEqual(["big.bin"]);
+    // The size guard counts the body ("hi") + every attachment, inline or not.
+    expect(out.sizeBytes).toBe(2 + 2 + (MAX_INLINE_ATTACHMENT_BYTES + 1));
   });
 });

@@ -8,7 +8,9 @@ const account: Account = { id: "a@x.com", displayId: "a@x.com", credentialSource
 const limiter = new BoundedConcurrency(5);
 
 function graph(handler: (req: GraphRequest) => unknown): GraphClient {
-  return { request: vi.fn(async (_a: Account, req: GraphRequest) => handler(req)) } as unknown as GraphClient;
+  return {
+    request: vi.fn(async (_a: Account, req: GraphRequest) => handler(req)),
+  } as unknown as GraphClient;
 }
 
 describe("collectFolderTree (FR-C6-1)", () => {

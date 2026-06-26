@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { sendMessage } from "../src/capabilities/sendMessage.js";
 import { FetchGraphClient } from "../src/graph/client.js";
+import { MAX_INLINE_ATTACHMENT_BYTES } from "../src/output/contract.js";
 import type { Account } from "../src/domain/types.js";
 import type {
   AccountRegistry,
   AttachmentReader,
+  AttachmentUploader,
   GraphClient,
   GraphRequest,
 } from "../src/domain/contracts.js";
@@ -19,6 +21,8 @@ const attachments: AttachmentReader = {
     bytes: new Uint8Array(Buffer.from(input.contentBase64 ?? "", "base64")),
   }),
 };
+
+const uploader: AttachmentUploader = { upload: async () => undefined };
 
 function graphQueue(responses: unknown[]) {
   const calls: GraphRequest[] = [];
@@ -35,7 +39,7 @@ describe("sendMessage (C5)", () => {
     const { graph, calls } = graphQueue([undefined]); // sendMail → 202, no body
 
     const result = await sendMessage(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       { to: ["b@x.com"], subject: "Ping", body: "hi" },
     );
 
@@ -65,7 +69,7 @@ describe("sendMessage (C5)", () => {
     });
 
     await expect(
-      sendMessage({ registry, graph, attachments }, { to: ["b@x.com"], body: "hi" }),
+      sendMessage({ registry, graph, attachments, uploader }, { to: ["b@x.com"], body: "hi" }),
     ).rejects.toThrow();
 
     expect(fetchImpl).toHaveBeenCalledOnce(); // attempted exactly once — no duplicate
@@ -86,7 +90,7 @@ describe("sendMessage (C5)", () => {
     });
 
     const result = await sendMessage(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       { to: ["b@x.com"], body: "hi" },
     );
     expect(result.structured.sent).toBe(true);
@@ -100,7 +104,7 @@ describe("sendMessage (C5)", () => {
     ]);
 
     await sendMessage(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       { to: ["b@x.com"], body: "reply", replyToConversationId: "conv-9" },
     );
 
@@ -108,5 +112,36 @@ describe("sendMessage (C5)", () => {
     expect(calls[1]!.path).toBe("/me/sendMail");
     const body = calls[1]!.body as { message: { subject: string } };
     expect(body.message.subject).toBe("Re: Plan");
+  });
+
+  it("sends a large attachment via create-draft → upload → send (no-dup preserved)", async () => {
+    const bigReader: AttachmentReader = {
+      read: async (i) => ({
+        filename: i.filename ?? "big.bin",
+        mimeType: "application/octet-stream",
+        bytes: new Uint8Array(MAX_INLINE_ATTACHMENT_BYTES + 10), // over the inline limit
+      }),
+    };
+    const upload = vi.fn(async () => undefined);
+    const { graph, calls } = graphQueue([{ id: "draftX" }, undefined]); // create draft, then send
+
+    const result = await sendMessage(
+      { registry, graph, attachments: bigReader, uploader: { upload } },
+      { to: ["b@x.com"], body: "big", attachments: [{ filename: "big.bin", path: "/ignored" }] },
+    );
+
+    // No inline sendMail; instead create draft → upload → send the draft.
+    expect(calls[0]!.path).toBe("/me/messages");
+    expect(calls[0]!.retryClass).toBe("nonDuplicable");
+    expect((calls[0]!.body as { attachments?: unknown[] }).attachments).toBeUndefined();
+    expect(upload).toHaveBeenCalledWith(
+      account,
+      "draftX",
+      expect.objectContaining({ filename: "big.bin" }),
+    );
+    expect(calls[1]!.path).toBe("/me/messages/draftX/send");
+    expect(calls[1]!.retryClass).toBe("nonDuplicable"); // irreversible step stays no-duplicate
+    expect(result.structured.sent).toBe(true);
+    expect(result.structured.has_attachments).toBe(true);
   });
 });

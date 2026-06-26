@@ -10,7 +10,12 @@
  * elides folders.
  */
 
-import type { Account, ConcurrencyLimiter, GraphClient, GraphRequest } from "../domain/contracts.js";
+import type {
+  Account,
+  ConcurrencyLimiter,
+  GraphClient,
+  GraphRequest,
+} from "../domain/contracts.js";
 import type { GraphMailFolder } from "./types.js";
 import { collectPaged } from "./paginate.js";
 

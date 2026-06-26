@@ -15,7 +15,7 @@
  */
 
 import type { ComposeInput, ResolvedAttachment } from "../domain/contracts.js";
-import { MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
+import { MAX_INLINE_ATTACHMENT_BYTES, MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
 import {
   formatRecipient,
   toGraphRecipient,
@@ -38,10 +38,16 @@ export interface ComposeOptions {
 
 export interface ComposedMessage {
   readonly message: GraphOutgoingMessage;
-  /** Raw body + attachment bytes, validated against the limit (NFR-PERF-3). */
+  /** Raw body + ALL attachment bytes (inline + upload), validated against the limit (NFR-PERF-3). */
   readonly sizeBytes: number;
   /** Human-readable recipient strings for the tool summary. */
   readonly recipients: { to: string[]; cc: string[]; bcc: string[] };
+  /**
+   * Attachments too large to inline (> {@link MAX_INLINE_ATTACHMENT_BYTES}). They
+   * are NOT in `message.attachments`; the write capability uploads each to the
+   * created draft via an upload session.
+   */
+  readonly uploadAttachments: ResolvedAttachment[];
 }
 
 const ADDRESS_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,10 +117,18 @@ export function composeMessage(
 
   const subject = resolveSubject(input, opts);
   const body = input.body ?? "";
-  const fileAttachments = attachments.map(toFileAttachment);
+
+  // Split by the inline limit: small files ride inline in the message request;
+  // larger ones are uploaded to the draft via an upload session afterwards.
+  const inline = attachments.filter((a) => a.bytes.byteLength <= MAX_INLINE_ATTACHMENT_BYTES);
+  const uploadAttachments = attachments.filter(
+    (a) => a.bytes.byteLength > MAX_INLINE_ATTACHMENT_BYTES,
+  );
+  const fileAttachments = inline.map(toFileAttachment);
   const headers = threadingHeaders(opts);
 
-  // Validate raw size locally before any Graph call (NFR-PERF-3).
+  // Validate raw size locally before any Graph call (NFR-PERF-3) — counting ALL
+  // attachments (inline + upload), since the whole message is bounded.
   const maxBytes = opts.maxBytes ?? MAX_OUTGOING_MESSAGE_BYTES;
   const attachmentBytes = attachments.reduce((n, a) => n + a.bytes.byteLength, 0);
   const sizeBytes = Buffer.byteLength(body, "utf8") + attachmentBytes;
@@ -147,5 +161,6 @@ export function composeMessage(
       cc: cc.map(display),
       bcc: bcc.map(display),
     },
+    uploadAttachments,
   };
 }

@@ -63,16 +63,48 @@ describe("GraphAttachmentUploader", () => {
     await expect(uploader.upload(account, "m", attachment(10))).rejects.toThrow(/non-HTTPS/i);
   });
 
-  it("throws an actionable error when a chunk PUT fails", async () => {
+  it("retries a transient (5xx) chunk failure with bounded backoff, then gives up", async () => {
     const { graph } = graphReturning({ uploadUrl: "https://upload.example/x" });
     const fetchImpl = vi.fn(async () => new Response("nope", { status: 500 }));
     const uploader = new GraphAttachmentUploader({
       graph,
       requestTimeoutMs: 1000,
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      retry: { maxRetries: 3, sleep: async () => undefined }, // instant
     });
     await expect(uploader.upload(account, "m", attachment(10))).rejects.toThrow(
       /upload of attachment "big.bin" failed/i,
     );
+    expect(fetchImpl).toHaveBeenCalledTimes(4); // 1 try + 3 retries
+  });
+
+  it("retries a transient chunk failure then succeeds", async () => {
+    const { graph } = graphReturning({ uploadUrl: "https://upload.example/x" });
+    let n = 0;
+    const fetchImpl = vi.fn(async () => {
+      n += 1;
+      return n === 1 ? new Response("", { status: 503 }) : new Response("", { status: 200 });
+    });
+    const uploader = new GraphAttachmentUploader({
+      graph,
+      requestTimeoutMs: 1000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      retry: { sleep: async () => undefined },
+    });
+    await uploader.upload(account, "m", attachment(10)); // resolves
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // 503 retried once, then 200
+  });
+
+  it("does NOT retry a non-transient 4xx (e.g. expired session)", async () => {
+    const { graph } = graphReturning({ uploadUrl: "https://upload.example/x" });
+    const fetchImpl = vi.fn(async () => new Response("gone", { status: 404 }));
+    const uploader = new GraphAttachmentUploader({
+      graph,
+      requestTimeoutMs: 1000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      retry: { sleep: async () => undefined },
+    });
+    await expect(uploader.upload(account, "m", attachment(10))).rejects.toThrow(/HTTP 404/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // not retried
   });
 });

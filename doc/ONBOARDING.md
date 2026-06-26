@@ -168,7 +168,7 @@ exactly one mailbox is connected (FR-ID-2). Use `list_accounts` to see the valid
 | `Authentication failed … Re-connect this account` | The refresh token was revoked/expired; re-run `outlook-mcp-auth connect` for that mailbox (the server picks up the new cache without a restart — FR-AUTH-9). |
 | `Credential source "…" is missing` | The `credentials*.json` that authorised the account was moved/removed; restore it or re-connect. |
 | Reading a `path` attachment is refused | Path attachments are disabled unless `OUTLOOK_MCP_ATTACHMENTS_DIR` is set to an allow-listed directory (NFR-SEC-3); inline base64 always works. |
-| `Attachment "…" is N MB, over the … MB limit` | v1 sends each attachment inline, which Microsoft Graph caps at ~3 MB per file. Larger files need an upload session (not implemented in v1) — split or link them instead. |
+| `Attachment "…" is N MB, over the … MB limit` | An attachment exceeds the whole-message size cap (~25 MB). Files ≤ ~3 MB ride inline; larger ones are uploaded to the draft via a Graph upload session automatically. Reduce the file to fit under the message cap. |
 
 ---
 

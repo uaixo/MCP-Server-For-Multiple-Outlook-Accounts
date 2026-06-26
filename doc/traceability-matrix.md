@@ -116,7 +116,7 @@ operator performs against a real mailbox.
 | Req | Summary | Module(s) | Test(s) | Status |
 | --- | --- | --- | --- | --- |
 | NFR-REL-1 | Per-request timeout (AbortSignal, 30s) | `graph/client` | `graphClient.test` | ✅ |
-| NFR-REL-2 | Bounded jittered backoff retry | `graph/retry` | `graphRetry.test` | ✅ |
+| NFR-REL-2 | Bounded jittered backoff retry | `graph/retry`, `mail/uploadSession` (chunk PUTs) | `graphRetry.test`, `uploadSession.test` | ✅ |
 | NFR-REL-3 | No duplicate side effects (send/draft policy) | `graph/retry` (policy), `capabilities/sendMessage|createDraft` (apply) | `graphRetry.test`, `sendMessage.test` | ✅ |
 | NFR-REL-4 | Concurrency bound on bulk fetches | `util/bounded`, `capabilities/organizeMail` | `bounded.test`, `organizeMail.test` | ✅ |
 

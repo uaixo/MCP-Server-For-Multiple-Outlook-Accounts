@@ -251,6 +251,7 @@ guarantee (FR-C5-4).
 | Header-injection safe | Strip CR/LF from recipients, subject, filenames (`mail/sanitize.ts`) so a display name / subject can't inject headers. | NFR-SEC-5 |
 | No secret logging | Never log tokens, credentials, or message bodies; `util/redact` scrubs secret shapes at every stderr boundary; tool-error text is redacted too. | NFR-SEC-6 |
 | Token-egress pinning | `graph/client` attaches the access token only to requests whose origin is `graph.microsoft.com`; an absolute URL (e.g. a `page_token` cursor) pointing elsewhere is refused, so the token can't be exfiltrated via a crafted URL. | NFR-SEC-6 |
+| Upload-session egress | The large-attachment chunk PUTs (`mail/uploadSession.ts`) go to a Graph-issued `uploadUrl` on a **non-Graph** host, so they bypass the Graph client and carry **no** `Authorization` header (the URL is pre-authenticated). HTTPS is required, and only the exact URL Graph returned is used (never caller-supplied). | NFR-SEC-6 |
 | Consent hardening | Loopback callback binds loopback-only, is short-lived, enforces PKCE + `state`. | NFR-SEC-7 |
 
 ---

@@ -10,8 +10,8 @@
 | --- | --- | --- |
 | 1 | Auth core + secure token store + CLI + `list_accounts` (C1) | ✅ merged |
 | 2 | Graph client + `search_conversations` (C2) + `read_conversation` (C3) | ✅ merged |
-| **3** | **Write path — `create_draft` (C4) + `send_message` (C5)** | ◻ **next — start here** |
-| 4 | Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8) | ◻ planned |
+| 3 | Write path — `create_draft` (C4) + `send_message` (C5) | ✅ done |
+| **4** | **Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8)** | ◻ **next — start here** |
 | 5 | Hardening & onboarding docs | ◻ planned |
 
 The authoritative roadmap is [`architecture.md` §13](./architecture.md). Per-requirement status
@@ -68,39 +68,48 @@ real Graph calls, spec §13) is run **locally by the operator** with a real Entr
 Outlook mailbox; this is where the `$search`/`$filter`, `$count`/`ConsistencyLevel`, and send
 behaviour get confirmed against the real API.
 
-## 6. Picking up Phase 3 — the write path (C4 `create_draft`, C5 `send_message`)
+## 6. Phase 3 — the write path (C4 `create_draft`, C5 `send_message`) ✅ done
 
 References: `provider-mapping.md` §3 (C4/C5 rows) and §7 item 4 (send semantics / no-duplicate);
-`architecture.md` §8 (retry classes) and §9 (attachment guard, header-injection safety). Mirror the
-existing capability shape in `src/capabilities/readConversation.ts` and the tool wiring +
-`toToolResult` envelope in `src/index.ts`.
+`architecture.md` §8 (retry classes) and §9 (attachment guard, header-injection safety). The write
+capabilities mirror the existing capability shape in `src/capabilities/readConversation.ts` and the
+tool wiring + `toToolResult` envelope in `src/index.ts`.
 
-Suggested order (each ◻ is a module + its test, with the requirements it satisfies):
+What shipped (each module + its test, with the requirements it satisfies):
 
-- [ ] `src/mail/sanitize.ts` — strip CR/LF from header-bound values (recipients, subject, filenames)
-      so a display name/subject can't inject headers. **NFR-SEC-5.** → `test/sanitize.test.ts`
-- [ ] `src/mail/compose.ts` — build the Graph message JSON: parse recipients (`addr` or
-      `Display Name <addr>`), `to`/`cc`/`bcc`, subject, body + `is_html`; reply threading
-      (`POST /me/messages/{id}/createReply` or `In-Reply-To`/`References`), default `Re:` subject;
-      validate outgoing size locally before the call. **FR-C4-1/4/5, NFR-PERF-3.** Uses `sanitize`.
-      → `test/compose.test.ts`
-- [ ] `src/mail/attachments.ts` — attachment input is **exactly one of** a local `path` **or** inline
+- [x] `src/mail/sanitize.ts` — strip CR/LF (and other controls) from header-bound values
+      (recipients, subject, filenames) so a display name/subject can't inject headers. **NFR-SEC-5.**
+      → `test/sanitize.test.ts`
+- [x] `src/mail/compose.ts` — build the Graph message JSON: parse recipients (`addr` or
+      `Display Name <addr>`), `to`/`cc`/`bcc`, subject, body + `is_html`; reply threading via
+      `In-Reply-To`/`References`, default `Re:` subject; validate outgoing size locally before the
+      call. **FR-C4-1/4/5, NFR-PERF-3.** Uses `sanitize`. → `test/compose.test.ts`
+- [x] `src/mail/attachments.ts` — attachment input is **exactly one of** a local `path` **or** inline
       base64. `path` reads are **disabled unless** within `OUTLOOK_MCP_ATTACHMENTS_DIR`; fully resolve
       symlinks/`..` and validate the real path is inside an allowed dir **before** reading; open the
       file **once** and read via the handle (TOCTOU-safe). Infer filename/MIME; require filename for
-      inline. **NFR-SEC-3/4, FR-C4-3.** (`config.attachmentsAllowList` already exists.)
-      → `test/attachments.test.ts`
-- [ ] `src/capabilities/createDraft.ts` (C4) — `POST /me/messages` (`isDraft`); attachments as
-      `fileAttachment` resources; **retryClass `nonDuplicable`**; do not send. **FR-C4-1..4.**
-      → `test/createDraft.test.ts`
-- [ ] `src/capabilities/sendMessage.ts` (C5) — `POST /me/sendMail` (single call to avoid an ambiguous
+      inline. **NFR-SEC-3/4, FR-C4-3.** → `test/attachments.test.ts`
+- [x] `src/mail/replyLookup.ts` — fetch the conversation's latest message (subject +
+      `internetMessageId`) to drive the `Re:` default and threading headers. **FR-C4-4 / FR-C5-1.**
+- [x] `src/capabilities/createDraft.ts` (C4) — `POST /me/messages` (creates with `isDraft`);
+      attachments as `fileAttachment` resources; **retryClass `nonDuplicable`**; do not send.
+      **FR-C4-1..4.** → `test/createDraft.test.ts`
+- [x] `src/capabilities/sendMessage.ts` (C5) — `POST /me/sendMail` (single call to avoid an ambiguous
       two-step window); **retryClass `nonDuplicable`** so only a pre-processing 429 is retried —
-      never an ambiguous 5xx/timeout → **no duplicate sends**. **FR-C5-1/2/4, NFR-REL-3.** Add a
-      forced-transient-failure test asserting the send is attempted once. → `test/sendMessage.test.ts`
-- [ ] `src/index.ts` — register `create_draft` (write, non-destructive) and `send_message`
+      never an ambiguous 5xx/timeout → **no duplicate sends**. **FR-C5-1/2/4, NFR-REL-3.** A
+      forced-transient-failure test asserts the send is attempted exactly once.
+      → `test/sendMessage.test.ts`
+- [x] `src/capabilities/outgoing.ts` — shared plumbing (resolve attachments → reply context →
+      compose) used by both write tools.
+- [x] `src/index.ts` — registers `create_draft` (write, non-destructive) and `send_message`
       (**`destructiveHint: true`**) with zod input schemas + the account selector. **NFR-OPS-4.**
-- [ ] Docs — flip the Phase-3 rows in `traceability-matrix.md` to ✅, update the README capabilities
-      table, and mark `architecture.md` §13 phase 3 done.
+      → `test/toolsAnnotations.test.ts`
+- [x] Docs — Phase-3 rows in `traceability-matrix.md` flipped to ✅, README capabilities table +
+      status updated, `architecture.md` §13 phase 3 marked done.
+
+> **Note (live-confirmed):** the `FetchGraphClient` was extended to treat 202/empty responses as a
+> no-body success (`sendMail` returns 202). Graph's acceptance of the `In-Reply-To`/`References`
+> internet headers and the effective outgoing-size limit are confirmed by the operator's live run.
 
 ## 7. Decisions already made (don't relitigate without reason)
 

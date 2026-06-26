@@ -315,8 +315,11 @@ credentials this environment cannot hold).
    NFR-SEC-1/2) — 29 tests, Graph/MSAL mocked.
 2. ✅ **Read path (done)** — Graph client (timeout/retry/errors), search translate, **C2/C3**,
    output contract + bounds. (FR-C2/C3, NFR-REL-1/2, NFR-PERF-*) — 71 tests, Graph/MSAL mocked.
-3. **Write path** — compose/attachments/sanitize, **C4/C5** with no-duplicate-send. (FR-C4/C5,
-   NFR-SEC-3/4/5, NFR-REL-3)
+3. ✅ **Write path (done)** — compose/attachments/sanitize, **C4** `create_draft` + **C5**
+   `send_message` with a single-call `sendMail` under the `nonDuplicable` retry class (no duplicate
+   sends), allow-listed/TOCTOU-safe attachments, header-injection stripping, and local
+   outgoing-size validation. (FR-C4/C5, NFR-SEC-3/4/5, NFR-PERF-3, NFR-REL-3) — 113 tests,
+   Graph/MSAL mocked.
 4. **Organise path** — labels listing/create, decompose fan-out, **C6/C7/C8**. (FR-C6/C7/C8)
 5. **Hardening & docs** — full error mapping, onboarding docs (CON-3), cross-platform check.
 

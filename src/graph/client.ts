@@ -69,7 +69,10 @@ export class FetchGraphClient implements GraphClient {
     }
 
     if (!res.ok) throw await errorFromResponse(res);
+    // Empty-body successes: 204 No Content (e.g. PATCH) and 202 Accepted
+    // (`POST /me/sendMail`). Parse JSON only when there is a body to parse.
     if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
   }
 }

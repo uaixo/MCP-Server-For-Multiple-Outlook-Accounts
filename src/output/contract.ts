@@ -18,6 +18,14 @@ export const CONVERSATION_BODY_CHAR_CAP = 20_000;
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
 
+/**
+ * Max raw size (body + attachment bytes) for an outgoing message, validated
+ * locally before the Graph call so oversize sends fail fast with a clear error
+ * rather than after an upload (NFR-PERF-3). Reference limit ~25 MB; the
+ * effective mailbox policy is confirmed against the live API by the operator.
+ */
+export const MAX_OUTGOING_MESSAGE_BYTES = 25 * 1024 * 1024;
+
 /** Clamp a string to a character budget, appending an ellipsis when truncated. */
 export function clampText(
   text: string,

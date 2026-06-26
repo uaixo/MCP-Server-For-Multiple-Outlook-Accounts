@@ -15,9 +15,9 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 
 ---
 
-## Project status: phase 2 (read path)
+## Project status: phase 3 (write path)
 
-Built with **TypeScript 6.0.3**; build, typecheck, tests (71), and format all green. What exists today:
+Built with **TypeScript 6.0.3**; build, typecheck, tests (113), and format all green. What exists today:
 
 - ✅ Architecture design + requirements traceability matrix (`doc/`).
 - ✅ **Auth core:** Entra credential-source discovery, MSAL public-client (consent + silent refresh),
@@ -25,11 +25,15 @@ Built with **TypeScript 6.0.3**; build, typecheck, tests (71), and format all gr
 - ✅ **Account-management CLI:** `outlook-mcp-auth connect | list | remove`.
 - ✅ **Microsoft Graph client:** thin `fetch` wrapper with a per-request timeout, bounded jittered
   retry (with the no-duplicate-send policy), and actionable error mapping.
-- ✅ **Tools:** `list_accounts` (C1), `search_conversations` (C2), `read_conversation` (C3) — with
+- ✅ **Read tools:** `list_accounts` (C1), `search_conversations` (C2), `read_conversation` (C3) — with
   Gmail-style search-operator translation and bounded, truncating output.
+- ✅ **Write tools:** `create_draft` (C4) and `send_message` (C5) — recipient parsing
+  (`Display Name <addr>`), header-injection stripping, allow-listed/TOCTOU-safe attachments,
+  local outgoing-size validation, reply threading, and a single `sendMail` call under the
+  `nonDuplicable` retry policy so a retry can never double-deliver.
 
-**Not yet implemented:** capabilities **C4–C8** (draft, send, labels, organise). These are designed
-in `doc/architecture.md` §13 (build phases 3–4) and tracked as _Planned_ in the traceability matrix.
+**Not yet implemented:** capabilities **C6–C8** (labels, organise). These are designed
+in `doc/architecture.md` §13 (build phase 4) and tracked as _Planned_ in the traceability matrix.
 
 > Tests mock Microsoft Graph and MSAL. Live `§13` acceptance — real browser consent and Graph calls —
 > requires an Entra app registration + Outlook mailboxes and is run locally by the operator.
@@ -43,8 +47,8 @@ in `doc/architecture.md` §13 (build phases 3–4) and tracked as _Planned_ in t
 | `list_accounts`        | List connected mailboxes   | No           | ✅ live    |
 | `search_conversations` | Search a mailbox (paged)   | No           | ✅ live    |
 | `read_conversation`    | Read a full conversation   | No           | ✅ live    |
-| `create_draft`         | Compose a draft (not sent) | No           | ◻ phase 3 |
-| `send_message`         | Send immediately           | **Yes**      | ◻ phase 3 |
+| `create_draft`         | Compose a draft (not sent) | No           | ✅ live    |
+| `send_message`         | Send immediately           | **Yes**      | ✅ live    |
 | `list_labels`          | List categories + folders  | No           | ◻ phase 4 |
 | `create_label`         | Create a category/folder   | No           | ◻ phase 4 |
 | `organize_mail`        | Tag / move / read-state    | **Yes**      | ◻ phase 4 |

@@ -68,10 +68,12 @@ export type RetryClass =
 
 export interface GraphRequest {
   readonly method: "GET" | "POST" | "PATCH" | "DELETE";
-  /** Path relative to the Graph base (e.g. `/me/messages`). */
+  /** Path relative to the Graph base (e.g. `/me/messages`), OR an absolute Graph URL (e.g. an `@odata.nextLink`). */
   readonly path: string;
   readonly query?: Record<string, string | number | boolean | undefined>;
   readonly body?: unknown;
+  /** Extra request headers (e.g. `ConsistencyLevel: eventual` for `$count`/`$search`). */
+  readonly headers?: Record<string, string>;
   readonly retryClass: RetryClass;
 }
 

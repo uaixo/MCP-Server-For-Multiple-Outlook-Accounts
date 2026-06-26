@@ -1,6 +1,6 @@
 {
   "name": "mcp-server-for-multiple-outlook-accounts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local, single-connector MCP server that operates several Outlook / Microsoft 365 mailboxes at once (provider variant of the neutral multi-account mailbox spec).",
   "type": "module",
   "license": "MIT",

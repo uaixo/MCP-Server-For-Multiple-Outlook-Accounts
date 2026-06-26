@@ -24,7 +24,8 @@
 
 ## 2. What has been delivered
 
-Built spec-driven, one phase per PR, then two review rounds. All merged to `main`.
+Built spec-driven, one phase per PR, then two review rounds, then the optional §4.3 enhancements.
+All merged to `main`.
 
 | Phase / PR | Scope | Status |
 | --- | --- | --- |
@@ -35,9 +36,19 @@ Built spec-driven, one phase per PR, then two review rounds. All merged to `main
 | 5 (PR #8) | Hardening (secret-redaction boundary, NFR-SEC-6) + operator onboarding docs (`ONBOARDING.md`, CON-3/ASM-1) | ✅ merged |
 | Review 1 (PR #9, #10) | Token-egress pinning (SSRF), bounded attachment reads, tool-error redaction, malformed-response mapping; then `O_NOFOLLOW`, token-store `fsync`, lock-staleness decoupling | ✅ merged |
 | Review 2 (PR #11, #12) | Browser-spawn crash fix, bounded-concurrency stop-on-error, deterministic organise order, hex HTML entities, **test type-checking in CI**; then per-attachment inline size limit, organise partial-failure docs, dedup | ✅ merged |
+| Enhancements (PR #14) | §4.3 optional enhancements: **large-attachment upload sessions** (`mail/uploadSession.ts`, C4/C5), **trash/junk organise moves** (C8), **recursive folder enumeration** (`graph/folders.ts`, C6) | ✅ merged |
 
 Per-requirement status (every FR/NFR/CON → module → test) lives in
 [`traceability-matrix.md`](./traceability-matrix.md). It is the authoritative checklist.
+
+> **Most recent change (PR #14) — what to know.** The write path now branches on attachment size:
+> files ≤ ~3 MB ride inline; larger ones upload to the draft via an upload session (chunked PUTs to
+> the Graph-issued URL — a *deliberate* non-Graph egress that carries **no** access token; see
+> `mail/uploadSession.ts` and architecture.md §9). `send_message` with a large attachment becomes
+> create-draft → upload → **send**, with the final `/send` still `nonDuplicable` so the no-duplicate
+> guarantee holds. `organize_mail` gained mutually-exclusive `trash`/`junk` moves; `list_labels`
+> returns nested folders by full path. All three are offline-tested but **await live confirmation**
+> (§4.1).
 
 ---
 
@@ -48,10 +59,12 @@ src/
   index.ts                 MCP server: registers all 8 tools, dual-channel result, redaction
   cli/                     out-of-band account CLI (connect/list/remove)
   auth/                    credentialSources, msalClient, tokenProvider, tokenStore, accountRegistry
-  graph/                   client (single egress, retry, SSRF-pinned), errors, paginate, types
+  graph/                   client (single egress, retry, SSRF-pinned), errors, paginate, types,
+                           folders (recursive folder-tree enumeration for C6)
   search/translate.ts      Gmail-style operators → $search/$filter
-  mail/                    sanitize, compose, attachments, replyLookup   (compose+sanitize are PURE)
-  organise/decompose.ts    C8 fan-out: intent → Graph ops               (PURE)
+  mail/                    sanitize, compose, attachments, replyLookup, uploadSession
+                           (compose+sanitize are PURE; uploadSession = large-attachment upload)
+  organise/decompose.ts    C8 fan-out: intent → Graph ops (categories/isRead/move)  (PURE)
   capabilities/            one file per tool (C1–C8) + outgoing.ts (shared write plumbing)
   output/contract.ts       response bounds + size limits
   util/                    bounded (concurrency), lock, html, redact

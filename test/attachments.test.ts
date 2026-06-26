@@ -105,6 +105,16 @@ describe("FsAttachmentReader — path guard (NFR-SEC-3/4)", () => {
     const reader = new FsAttachmentReader([allowedDir]);
     await expect(reader.read({ path: link })).rejects.toThrow(/outside the allowed directory/i);
   });
+
+  it("still reads through a symlink that resolves to a real file inside the allow-list", async () => {
+    // realpath resolves the link to the real target before O_NOFOLLOW opens it,
+    // so legitimate in-allow-list symlinks keep working.
+    const link = join(allowedDir, "link-to-report.pdf");
+    await symlink(join(allowedDir, "report.pdf"), link);
+    const reader = new FsAttachmentReader([allowedDir]);
+    const out = await reader.read({ path: link });
+    expect(toText(out.bytes)).toBe("PDFDATA");
+  });
 });
 
 describe("FsAttachmentReader — size guard (NFR-PERF-3)", () => {

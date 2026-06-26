@@ -20,10 +20,21 @@
  */
 
 import { open, realpath } from "node:fs/promises";
+import { constants as FS } from "node:fs";
 import { basename, extname, resolve, sep } from "node:path";
 import type { AttachmentInput, AttachmentReader, ResolvedAttachment } from "../domain/contracts.js";
 import { MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
 import { sanitizeFilename } from "./sanitize.js";
+
+/**
+ * Open read-only and (where the OS supports it) refuse to follow a symlink at
+ * the FINAL path segment. We open the already-`realpath`'d path, so its last
+ * component is a real file under normal conditions; `O_NOFOLLOW` closes the
+ * narrow TOCTOU window where an attacker swaps that component for a symlink
+ * between resolution and open (NFR-SEC-4). `O_NOFOLLOW` is absent on Windows
+ * (where creating symlinks needs privilege anyway), so it degrades to `O_RDONLY`.
+ */
+const OPEN_READ_NOFOLLOW = FS.O_RDONLY | (FS.O_NOFOLLOW ?? 0);
 
 /** Minimal extension → MIME map; everything else is the generic binary type. */
 const MIME_BY_EXT: Record<string, string> = {
@@ -120,8 +131,17 @@ export class FsAttachmentReader implements AttachmentReader {
     }
 
     // Open the resolved path ONCE and read through the handle so there is no
-    // check-then-reopen window (TOCTOU-safe, NFR-SEC-4).
-    const handle = await open(realPath, "r");
+    // check-then-reopen window (TOCTOU-safe, NFR-SEC-4). O_NOFOLLOW rejects a
+    // final-segment symlink swapped in after resolution.
+    let handle;
+    try {
+      handle = await open(realPath, OPEN_READ_NOFOLLOW);
+    } catch (e) {
+      if (e instanceof Error && "code" in e && (e as { code?: string }).code === "ELOOP") {
+        throw new Error("Refusing to follow a symlink to the attachment file.");
+      }
+      throw e;
+    }
     try {
       const stat = await handle.stat();
       if (!stat.isFile()) {

@@ -42,16 +42,32 @@ describe("withLock (NFR-SEC-2)", () => {
     expect(interleaved).toBe(false);
   });
 
-  it("recovers a stale lock older than the timeout", async () => {
+  it("recovers a lock older than the staleness threshold", async () => {
     const lock = join(dir, "c.lock");
     await writeFile(lock, "stale");
     const past = new Date(Date.now() - 10_000);
     await utimes(lock, past, past);
 
     let ran = false;
-    await withLock(lock, 1000, async () => {
-      ran = true;
-    });
+    // Explicit staleMs below the lock's age → it is stolen.
+    await withLock(
+      lock,
+      1000,
+      async () => {
+        ran = true;
+      },
+      500,
+    );
     expect(ran).toBe(true);
+  });
+
+  it("does NOT steal a lock younger than the staleness threshold (live writer)", async () => {
+    const lock = join(dir, "d.lock");
+    await writeFile(lock, "held");
+    const recent = new Date(Date.now() - 2000); // 2s old
+    await utimes(lock, recent, recent);
+
+    // Short wait, generous staleness: the live holder is never stolen from.
+    await expect(withLock(lock, 300, async () => undefined, 60_000)).rejects.toThrow(/timed out/i);
   });
 });

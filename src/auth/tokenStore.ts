@@ -15,7 +15,7 @@
  * each access so a re-consent is picked up without a server restart (FR-AUTH-9).
  */
 
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, rename } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { Account } from "../domain/types.js";
@@ -145,7 +145,15 @@ export class FileTokenStore implements TokenStore {
 
   private async atomicWrite(store: StoreFile): Promise<void> {
     const tmp = `${this.filePath}.tmp-${randomBytes(6).toString("hex")}`;
-    await writeFile(tmp, JSON.stringify(store, null, 2), { mode: FILE_MODE });
+    // Write → fsync → rename so a crash can't leave a torn or lost cache; the
+    // rename atomically replaces the previous file (NFR-SEC-2, architecture §9).
+    const handle = await open(tmp, "wx", FILE_MODE);
+    try {
+      await handle.writeFile(JSON.stringify(store, null, 2));
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await chmod(tmp, FILE_MODE).catch(() => undefined);
     await rename(tmp, this.filePath); // atomic replace on the same filesystem.
     await chmod(this.filePath, FILE_MODE).catch(() => undefined);

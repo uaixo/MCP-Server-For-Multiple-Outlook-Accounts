@@ -12,11 +12,12 @@
 - 🟡 **Partial** — implemented for the current slice / type or contract exists; more pending.
 - ◻ **Planned** — design fixed (see architecture.md); not yet coded.
 
-**Current phase:** **Phase 4 complete** — the organise path: **C6 `list_labels`** + **C7
-`create_label`** + **C8 `organize_mail`** with the label-decomposition fan-out (category / move /
-read-state) and bounded per-message concurrency, on top of phases 1–3 (auth + **C1**, read +
-**C2/C3**, write + **C4/C5**). **139 tests** pass (Graph/MSAL mocked). All eight capabilities are
-now implemented; remaining work is hardening + onboarding docs (phase 5 in architecture.md §13).
+**Current phase:** **Phase 5 complete** — hardening + onboarding: a secret-redaction boundary
+enforcing NFR-SEC-6 across all stderr log sites, and the operator onboarding guide
+([`ONBOARDING.md`](./ONBOARDING.md)) covering Entra app registration, the unverified-app consent
+policy (CON-3), and the CLI (ASM-1). On top of phases 1–4 (all eight capabilities C1–C8). **148
+tests** pass (Graph/MSAL mocked). The offline build is feature-complete; the only remaining items
+are the **live** acceptance runs the operator performs against a real mailbox.
 
 > **Delegated-to-MSAL note:** the loopback redirect, PKCE (S256), and CSRF `state`
 > (FR-AUTH-2/3/4, NFR-SEC-7) are satisfied by MSAL's `acquireTokenInteractive` and marked
@@ -105,7 +106,7 @@ now implemented; remaining work is hardening + onboarding docs (phase 5 in archi
 | NFR-SEC-3 | Attachment path guard (allow-list, resolve) | `mail/attachments`, `config` | `attachments.test` | ✅ |
 | NFR-SEC-4 | TOCTOU-safe attachment read | `mail/attachments` | `attachments.test` | ✅ |
 | NFR-SEC-5 | Strip CR/LF from header-bound values | `mail/sanitize`, `mail/compose` | `sanitize.test`, `compose.test` | ✅ |
-| NFR-SEC-6 | Never log tokens/credentials/content | all modules (errors carry no secrets) | `graphErrors.test` (messages are generic) | 🟡 (policy followed; dedicated assertion later) |
+| NFR-SEC-6 | Never log tokens/credentials/content | `util/redact` (scrubs log boundaries), `index`/`cli`/`tokenStore` | `redact.test`, `readyBanner.test`, `graphErrors.test` | ✅ |
 | NFR-SEC-7 | Consent loopback hardening (PKCE+state) | `auth/msalClient` (MSAL) | — | ✅ (MSAL) |
 
 ## 7. Non-functional — reliability (spec §10.2)
@@ -140,9 +141,9 @@ now implemented; remaining work is hardening + onboarding docs (phase 5 in archi
 | --- | --- | --- | --- |
 | CON-1 | One server = one provider (Outlook) | whole build; `package.json` name | ✅ |
 | CON-2 | Host acts on destructive annotations | `index` declares only | 🟡 (all 8 tools declared incl. destructive send + organize_mail) |
-| CON-3 | Unverified-app consent policy in onboarding docs | build phase 5 docs | ◻ |
+| CON-3 | Unverified-app consent policy in onboarding docs | `doc/ONBOARDING.md` §4 | ✅ |
 | CON-4 | Large binaries via allow-listed path, not base64 | `mail/attachments`, `config` | ✅ |
-| ASM-1 | Operator can register Entra app + run CLI | onboarding docs | ◻ |
+| ASM-1 | Operator can register Entra app + run CLI | `doc/ONBOARDING.md` §1–§5 | ✅ |
 | ASM-2 | Egress to Graph/Entra available | runtime env | n/a |
 
 ---
@@ -153,7 +154,7 @@ now implemented; remaining work is hardening + onboarding docs (phase 5 in archi
 | --- | --- | --- |
 | 1. Multi-account selection | `accountRegistry.test` ✅ | — |
 | 2. Capabilities C1–C8 | C1–C8 all covered: through C5 plus `listLabels`/`createLabel`/`decompose`/`organizeMail` tests ✅ | ✓ real sandbox |
-| 3. Onboarding (PKCE+state, refresh, re-consent) | `msalClient.test`, `tokenStore.test` (mocked) 🟡 | ✓ real consent |
+| 3. Onboarding (PKCE+state, refresh, re-consent) | `msalClient.test`, `tokenStore.test` (mocked) + `doc/ONBOARDING.md` 🟡 | ✓ real consent |
 | 4. No duplicate sends | `graphRetry.test` (policy) + `sendMessage.test` (single attempt under transient failure) ✅ | — |
 | 5. Attachment guard | `attachments.test` ✅ (allow-list, `..`/symlink escape, TOCTOU handle read) | — |
 | 6. Safety annotations | all 8 tools annotated; `send_message` + `organize_mail` destructive (`toolsAnnotations.test`) ✅ | ✓ host prompt |

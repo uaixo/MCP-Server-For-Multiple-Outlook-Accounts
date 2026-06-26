@@ -15,6 +15,7 @@ import { loadConfig, type Config } from "../config.js";
 import { loadCredentialSources, getCredentialSource } from "../auth/credentialSources.js";
 import { interactiveConnect, CONSENT_TIMEOUT_MS } from "../auth/msalClient.js";
 import { FileTokenStore } from "../auth/tokenStore.js";
+import { redactError } from "../util/redact.js";
 import type { CredentialSource } from "../domain/contracts.js";
 
 interface ConnectArgs {
@@ -75,7 +76,7 @@ export async function runConnect(argv: string[], config: Config = loadConfig()):
   try {
     source = await selectSource(config, args);
   } catch (e) {
-    process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
+    process.stderr.write(`${redactError(e)}\n`);
     return 1;
   }
 
@@ -98,7 +99,7 @@ export async function runConnect(argv: string[], config: Config = loadConfig()):
     process.stdout.write(`Connected ${identity} (via ${source.id}).\n`);
     return 0;
   } catch (e) {
-    process.stderr.write(`Failed to connect: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.stderr.write(`Failed to connect: ${redactError(e)}\n`);
     return 1;
   }
 }

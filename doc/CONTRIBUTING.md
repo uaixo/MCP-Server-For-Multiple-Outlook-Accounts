@@ -12,7 +12,12 @@
 | 2 | Graph client + `search_conversations` (C2) + `read_conversation` (C3) | ✅ merged |
 | 3 | Write path — `create_draft` (C4) + `send_message` (C5) | ✅ done |
 | 4 | Organise — `list_labels`/`create_label`/`organize_mail` (C6–C8) | ✅ done |
-| **5** | **Hardening & onboarding docs** | ◻ **next — start here** |
+| 5 | Hardening (secret-redaction boundary) + onboarding docs | ✅ done |
+
+**All five build phases are complete.** The offline build is feature-complete (C1–C8 + hardening +
+docs); the remaining work is the **live acceptance** runs the operator performs against a real
+Entra app registration + Outlook mailbox (spec §13.2/§13.3 — they need real credentials this
+environment can't hold). See [`ONBOARDING.md`](./ONBOARDING.md) to set that up.
 
 The authoritative roadmap is [`architecture.md` §13](./architecture.md). Per-requirement status
 (done / partial / planned, with the module + test that satisfies each) is in
@@ -140,6 +145,31 @@ What shipped:
 > each target's current categories and merges. Top-level folders are listed; nested child folders
 > are not recursively enumerated in v1. The `move`/PATCH fan-out and well-known `destinationId:
 > "archive"` are confirmed against the real API by the operator.
+
+## 6b. Phase 5 — hardening + onboarding ✅ done
+
+References: spec §10.1 (NFR-SEC-6), §8 + §14 (CON-3 / ASM-1); `architecture.md` §9 (security model)
+and §13 (phase 5).
+
+What shipped:
+
+- [x] `src/util/redact.ts` — pure `redact()` / `redactError()` that scrub Bearer tokens, JWTs, and
+      `*_token` / `client_secret` / `password` assignments. **NFR-SEC-6.** → `test/redact.test.ts`
+- [x] Redaction wired into every stderr boundary that prints an arbitrary error: `index.ts` fatal
+      handler, `cli/index.ts` + `cli/connect.ts`, and the `tokenStore` default warn sink. The
+      startup banner was extracted to a tested `formatReadyBanner` (identities only).
+      → `test/readyBanner.test.ts`
+- [x] `doc/ONBOARDING.md` — operator guide: Entra public-client registration, least-privilege
+      scopes, `credentials*.json`, the **unverified-app consent policy** (personal vs.
+      work/school + admin consent), the connect/list/remove CLI, host wiring, and troubleshooting.
+      **CON-3, ASM-1.** Linked from README + traceability matrix.
+- [x] Cross-platform check — already enforced by the CI matrix (ubuntu/macOS/windows × Node 20 & 22
+      + a Node-18 runtime smoke); no code change needed (NFR-OPS-1).
+- [x] Docs — NFR-SEC-6 / CON-3 / ASM-1 rows flipped to ✅; README + architecture §13 + this guide
+      updated to "phase 5 done / offline build feature-complete".
+
+> **What's left:** only the operator's **live** acceptance (real browser consent + real Graph
+> calls). Everything testable without real credentials is done and green (148 tests).
 
 ## 7. Decisions already made (don't relitigate without reason)
 

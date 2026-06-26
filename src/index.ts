@@ -28,6 +28,7 @@ import { organizeMail } from "./capabilities/organizeMail.js";
 import type { OutgoingArgs } from "./capabilities/outgoing.js";
 import { FsAttachmentReader } from "./mail/attachments.js";
 import { BoundedConcurrency } from "./util/bounded.js";
+import { redactError } from "./util/redact.js";
 import { MAX_PAGE_SIZE } from "./output/contract.js";
 import type {
   AccountRegistry,
@@ -348,18 +349,19 @@ async function main(): Promise<void> {
 
   // Report connected accounts to stderr (NFR-OPS-2) — never stdout (JSON-RPC) or secrets (NFR-SEC-6).
   const accounts = await registry.list();
-  process.stderr.write(
-    `[outlook-mcp] ready on stdio — connected accounts: ${
-      accounts.length ? accounts.map((a) => a.displayId).join(", ") : "none"
-    }\n`,
-  );
+  process.stderr.write(formatReadyBanner(accounts.map((a) => a.displayId)));
+}
+
+/** The stderr startup line (NFR-OPS-2). Only account identities — never secrets (NFR-SEC-6). */
+export function formatReadyBanner(accountDisplayIds: readonly string[]): string {
+  const accounts = accountDisplayIds.length ? accountDisplayIds.join(", ") : "none";
+  return `[outlook-mcp] ready on stdio — connected accounts: ${accounts}\n`;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((err: unknown) => {
-    process.stderr.write(
-      `[outlook-mcp] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
-    );
+    // Redact before logging: a thrown error may carry token/credential material (NFR-SEC-6).
+    process.stderr.write(`[outlook-mcp] fatal: ${redactError(err)}\n`);
     process.exit(1);
   });
 }

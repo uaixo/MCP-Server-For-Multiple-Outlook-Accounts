@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { runConnect } from "./connect.js";
 import { runList } from "./list.js";
 import { runRemove } from "./remove.js";
+import { redactError } from "../util/redact.js";
 
 const USAGE = `outlook-mcp-auth — manage Outlook / Microsoft 365 accounts for the MCP server
 
@@ -51,9 +52,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   run(process.argv)
     .then((code) => process.exit(code))
     .catch((err: unknown) => {
-      process.stderr.write(
-        `[outlook-mcp-auth] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
-      );
+      // Redact before logging: a thrown error may carry token/credential material (NFR-SEC-6).
+      process.stderr.write(`[outlook-mcp-auth] fatal: ${redactError(err)}\n`);
       process.exit(1);
     });
 }

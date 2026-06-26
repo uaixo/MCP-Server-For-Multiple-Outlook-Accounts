@@ -325,7 +325,11 @@ credentials this environment cannot hold).
    fan-out (category PATCH / `move` / read-state) applied per message under a bounded concurrency
    limit, reporting the conversation-wide union. (FR-C6/C7/C8, NFR-REL-4) — 139 tests, Graph/MSAL
    mocked.
-5. **Hardening & docs** — full error mapping, onboarding docs (CON-3), cross-platform check.
+5. ✅ **Hardening & docs (done)** — a secret-redaction boundary (`util/redact`) enforcing
+   NFR-SEC-6 across every stderr log site, the operator onboarding guide (`doc/ONBOARDING.md`,
+   CON-3 + ASM-1), and the cross-platform check carried by the CI matrix (ubuntu/macOS/windows ×
+   Node 20 & 22 + a Node-18 smoke). — 148 tests, Graph/MSAL mocked. The offline build is
+   feature-complete; only the operator's **live** acceptance runs remain.
 
 ---
 

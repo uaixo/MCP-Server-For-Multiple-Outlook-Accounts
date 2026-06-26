@@ -313,8 +313,8 @@ credentials this environment cannot hold).
 1. ✅ **Auth core (done)** — credential sources, MSAL client, secure token store (+lock), account
    registry, CLI `connect`/`list`/`remove`, and **C1** `list_accounts`. (FR-AUTH-*, FR-ID-*,
    NFR-SEC-1/2) — 29 tests, Graph/MSAL mocked.
-2. **Read path** — Graph client (timeout/retry/errors), search translate, **C2/C3**, output
-   contract + bounds. (FR-C2/C3, NFR-REL-1/2, NFR-PERF-*)
+2. ✅ **Read path (done)** — Graph client (timeout/retry/errors), search translate, **C2/C3**,
+   output contract + bounds. (FR-C2/C3, NFR-REL-1/2, NFR-PERF-*) — 71 tests, Graph/MSAL mocked.
 3. **Write path** — compose/attachments/sanitize, **C4/C5** with no-duplicate-send. (FR-C4/C5,
    NFR-SEC-3/4/5, NFR-REL-3)
 4. **Organise path** — labels listing/create, decompose fan-out, **C6/C7/C8**. (FR-C6/C7/C8)

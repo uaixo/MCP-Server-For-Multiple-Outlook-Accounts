@@ -14,38 +14,39 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 
 ---
 
-## Project status: phase 1 (auth core + `list_accounts`)
+## Project status: phase 2 (read path)
 
-Built with **TypeScript 6.0.3**; build, typecheck, tests (29), and format all green. What exists today:
+Built with **TypeScript 6.0.3**; build, typecheck, tests (71), and format all green. What exists today:
 
 - ✅ Architecture design + requirements traceability matrix (`doc/`).
-- ✅ Neutral domain types + subsystem contracts; tested config loader (`src/domain/`, `src/config.ts`).
 - ✅ **Auth core:** Entra credential-source discovery, MSAL public-client (consent + silent refresh),
   secure token store (`0600`/`0700`, atomic + cross-process-locked), account-selection registry.
 - ✅ **Account-management CLI:** `outlook-mcp-auth connect | list | remove`.
-- ✅ **C1 `list_accounts`** MCP tool (with behavioural annotations), served over stdio.
+- ✅ **Microsoft Graph client:** thin `fetch` wrapper with a per-request timeout, bounded jittered
+  retry (with the no-duplicate-send policy), and actionable error mapping.
+- ✅ **Tools:** `list_accounts` (C1), `search_conversations` (C2), `read_conversation` (C3) — with
+  Gmail-style search-operator translation and bounded, truncating output.
 
-**Not yet implemented:** capabilities **C2–C8** (search, read, draft, send, labels, organise) and the
-Microsoft Graph client (timeout/retry/error-mapping). These are designed in `doc/architecture.md` §13
-(build phases 2–4) and tracked as _Planned_ in the traceability matrix.
+**Not yet implemented:** capabilities **C4–C8** (draft, send, labels, organise). These are designed
+in `doc/architecture.md` §13 (build phases 3–4) and tracked as _Planned_ in the traceability matrix.
 
 > Tests mock Microsoft Graph and MSAL. Live `§13` acceptance — real browser consent and Graph calls —
 > requires an Entra app registration + Outlook mailboxes and is run locally by the operator.
 
 ---
 
-## Planned capabilities (spec §5)
+## Capabilities (spec §5)
 
-| Tool                   | Purpose                    | Destructive? |
-| ---------------------- | -------------------------- | ------------ |
-| `list_accounts`        | List connected mailboxes   | No           |
-| `search_conversations` | Search a mailbox (paged)   | No           |
-| `read_conversation`    | Read a full conversation   | No           |
-| `create_draft`         | Compose a draft (not sent) | No           |
-| `send_message`         | Send immediately           | **Yes**      |
-| `list_labels`          | List categories + folders  | No           |
-| `create_label`         | Create a category/folder   | No           |
-| `organize_mail`        | Tag / move / read-state    | **Yes**      |
+| Tool                   | Purpose                    | Destructive? | Status     |
+| ---------------------- | -------------------------- | ------------ | ---------- |
+| `list_accounts`        | List connected mailboxes   | No           | ✅ live    |
+| `search_conversations` | Search a mailbox (paged)   | No           | ✅ live    |
+| `read_conversation`    | Read a full conversation   | No           | ✅ live    |
+| `create_draft`         | Compose a draft (not sent) | No           | ◻ phase 3 |
+| `send_message`         | Send immediately           | **Yes**      | ◻ phase 3 |
+| `list_labels`          | List categories + folders  | No           | ◻ phase 4 |
+| `create_label`         | Create a category/folder   | No           | ◻ phase 4 |
+| `organize_mail`        | Tag / move / read-state    | **Yes**      | ◻ phase 4 |
 
 Plus an out-of-band account-management CLI (`outlook-mcp-auth connect | list | remove`).
 

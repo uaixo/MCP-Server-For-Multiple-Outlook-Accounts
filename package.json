@@ -22,7 +22,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "start": "node dist/index.js",
-    "auth": "node dist/cli/index.js"
+    "auth": "node dist/cli/index.js",
+    "live-smoke": "node scripts/live-smoke.mjs"
   },
   "dependencies": {
     "@azure/msal-node": "5.3.0",

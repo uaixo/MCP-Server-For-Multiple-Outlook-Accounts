@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { listLabels } from "../src/capabilities/listLabels.js";
+import { BoundedConcurrency } from "../src/util/bounded.js";
 import type { Account } from "../src/domain/types.js";
 import type { AccountRegistry, GraphClient, GraphRequest } from "../src/domain/contracts.js";
 
 const account: Account = { id: "a@x.com", displayId: "a@x.com", credentialSourceId: "app1" };
 const registry: AccountRegistry = { list: async () => [account], resolve: async () => account };
+const limiter = new BoundedConcurrency(5);
+const deps = (graph: GraphClient) => ({ registry, graph, limiter });
 
 /** Mock that routes by request path and can page via @odata.nextLink. */
 function graphByPath(routes: Record<string, unknown>) {
@@ -34,7 +37,7 @@ describe("listLabels (C6)", () => {
       },
     });
 
-    const result = await listLabels({ registry, graph }, {});
+    const result = await listLabels(deps(graph), {});
     const { labels } = result.structured;
 
     const work = labels.find((l) => l.display_name === "Work")!;
@@ -63,8 +66,36 @@ describe("listLabels (C6)", () => {
     });
     const graph = { request } as unknown as GraphClient;
 
-    const result = await listLabels({ registry, graph }, {});
+    const result = await listLabels(deps(graph), {});
     const names = result.structured.labels.map((l) => l.display_name);
     expect(names).toEqual(["First", "Second"]);
+  });
+
+  it("recurses into child folders and reports full paths (FR-C6-1)", async () => {
+    const request = vi.fn(async (_acct: Account, req: GraphRequest) => {
+      if (req.path.includes("masterCategories")) return { value: [] };
+      if (req.path.includes("/childFolders")) {
+        if (req.path.includes("INBOX"))
+          return { value: [{ id: "SUB", displayName: "Clients", childFolderCount: 1 }] };
+        if (req.path.includes("SUB"))
+          return { value: [{ id: "ACME", displayName: "Acme", childFolderCount: 0 }] };
+        return { value: [] };
+      }
+      // top-level mail folders
+      return { value: [{ id: "INBOX", displayName: "Inbox", childFolderCount: 1 }] };
+    });
+    const graph = { request } as unknown as GraphClient;
+
+    const result = await listLabels(deps(graph), {});
+    const folders = result.structured.labels.filter((l) => l.kind === "folder");
+    expect(folders.map((l) => l.display_name)).toEqual([
+      "Inbox",
+      "Inbox/Clients",
+      "Inbox/Clients/Acme",
+    ]);
+
+    const acme = folders.find((l) => l.display_name === "Inbox/Clients/Acme")!;
+    expect(acme).toMatchObject({ id: "ACME", system: false }); // nested → not system
+    expect(folders.find((l) => l.display_name === "Inbox")!.system).toBe(true); // top-level well-known
   });
 });

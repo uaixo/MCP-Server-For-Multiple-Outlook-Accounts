@@ -82,6 +82,10 @@ build request via pure layers → call Graph → shape the dual-channel result).
 
 ### 4.1 Live acceptance run (the only required remaining work)
 
+> **Runbook:** [`LIVE-ACCEPTANCE.md`](./LIVE-ACCEPTANCE.md) turns this checklist into ordered steps
+> with pass/fail criteria, and `npm run live-smoke` automates the read-only half against your real
+> mailbox. Use it.
+
 Everything testable without real credentials is done and green. What a real Entra app + Outlook
 mailbox is needed to confirm (spec §13.2/§13.3; set up via [`ONBOARDING.md`](./ONBOARDING.md)):
 
@@ -174,6 +178,7 @@ npm run format:check  # prettier
 | [`architecture.md`](./architecture.md) | The design: module layout (§3/§4), organise fan-out (§6), search translate (§7), retry/no-dup-send (§8), security model (§9), build roadmap (§13). |
 | [`traceability-matrix.md`](./traceability-matrix.md) | Live checklist: every requirement → module → test → status. **Update as you go.** |
 | [`ONBOARDING.md`](./ONBOARDING.md) | Operator setup for the live run: Entra app registration, consent, the CLI. |
+| [`LIVE-ACCEPTANCE.md`](./LIVE-ACCEPTANCE.md) | The acceptance runbook: ordered live checks + `npm run live-smoke`. |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | How we work + the per-phase record of what shipped. |
 | **`HANDOVER.md`** (this file) | Point-in-time status + the outstanding-work checklist. |
 

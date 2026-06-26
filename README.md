@@ -12,6 +12,7 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 - 🏗️ [`doc/architecture.md`](./doc/architecture.md) — how this variant is designed and built.
 - ✅ [`doc/traceability-matrix.md`](./doc/traceability-matrix.md) — every requirement → module → test.
 - 🚀 [`doc/ONBOARDING.md`](./doc/ONBOARDING.md) — operator guide: register an Entra app, handle consent, connect a mailbox.
+- ✅ [`doc/LIVE-ACCEPTANCE.md`](./doc/LIVE-ACCEPTANCE.md) — live acceptance runbook + `npm run live-smoke` (the remaining work).
 - 🤝 [`doc/CONTRIBUTING.md`](./doc/CONTRIBUTING.md) — handoff guide: how we work, workflow, and the per-phase record.
 - 📋 [`doc/HANDOVER.md`](./doc/HANDOVER.md) — handover snapshot: what's done and the outstanding-work checklist.
 

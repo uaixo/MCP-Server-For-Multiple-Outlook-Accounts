@@ -25,12 +25,22 @@ export class BoundedConcurrency implements ConcurrencyLimiter {
   async run<T>(tasks: Array<() => Promise<T>>): Promise<T[]> {
     const results = new Array<T>(tasks.length);
     let next = 0;
+    let failed = false;
 
     const worker = async (): Promise<void> => {
       for (;;) {
+        // Stop dispatching new tasks once any task has failed, so a partial
+        // fan-out (e.g. organize_mail) doesn't keep applying side effects after
+        // the first error. In-flight tasks still settle; the rejection wins.
+        if (failed) return;
         const index = next++;
         if (index >= tasks.length) return;
-        results[index] = await tasks[index]!();
+        try {
+          results[index] = await tasks[index]!();
+        } catch (e) {
+          failed = true;
+          throw e;
+        }
       }
     };
 

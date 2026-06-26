@@ -19,7 +19,7 @@
  * file. Filenames are sanitized so they cannot inject mail headers (NFR-SEC-5).
  */
 
-import { open, realpath } from "node:fs/promises";
+import { open, realpath, type FileHandle } from "node:fs/promises";
 import { constants as FS } from "node:fs";
 import { basename, extname, resolve, sep } from "node:path";
 import type { AttachmentInput, AttachmentReader, ResolvedAttachment } from "../domain/contracts.js";
@@ -133,7 +133,7 @@ export class FsAttachmentReader implements AttachmentReader {
     // Open the resolved path ONCE and read through the handle so there is no
     // check-then-reopen window (TOCTOU-safe, NFR-SEC-4). O_NOFOLLOW rejects a
     // final-segment symlink swapped in after resolution.
-    let handle;
+    let handle: FileHandle;
     try {
       handle = await open(realPath, OPEN_READ_NOFOLLOW);
     } catch (e) {

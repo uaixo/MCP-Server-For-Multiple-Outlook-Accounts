@@ -119,7 +119,14 @@ export async function organizeMail(
     const req: GraphRequest = {
       method: "GET",
       path: "/me/messages",
-      query: { $filter: `conversationId eq '${escaped}'`, $select: SELECT, $top: 100 },
+      query: {
+        $filter: `conversationId eq '${escaped}'`,
+        $select: SELECT,
+        // Deterministic order so that, if a conversation exceeds the cap, it is
+        // the newest messages that are organised (not a provider-arbitrary set).
+        $orderby: "receivedDateTime desc",
+        $top: 100,
+      },
       retryClass: "safe",
     };
     const page = await collectPaged<GraphMessage>(deps.graph, account, req, ORGANISE_MESSAGE_CAP);

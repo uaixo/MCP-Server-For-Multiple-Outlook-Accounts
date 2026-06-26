@@ -110,21 +110,34 @@ export interface GraphOperation {
   readonly request: GraphRequest;
 }
 
-/**
- * Decomposes ONE neutral organise request into the correct combination of Graph
- * operations — categories[] (tag), move (folder/archive/junk), isRead
- * (read-state). This is the core porting risk (spec §4 concept-decomposition
- * rule, FR-C8-6; provider-mapping §3.1 / §7 item 1).
- */
-export interface OrganiseDecomposer {
-  decompose(intent: OrganiseIntent): GraphOperation[];
+/** The current state of a target message needed to decompose an organise intent. */
+export interface OrganiseTargetMessage {
+  readonly id: string;
+  /** Categories currently applied (Graph PATCH replaces the whole array). */
+  readonly categories?: string[];
+  readonly isRead?: boolean;
 }
 
-/** Add/remove labels plus derived intents; at least one change required (FR-C8-2/3). */
+/**
+ * Decomposes ONE neutral organise request, against a specific target message,
+ * into the correct combination of Graph operations — categories[] (tag), move
+ * (folder/archive/junk), isRead (read-state). This is the core porting risk
+ * (spec §4 concept-decomposition rule, FR-C8-6; provider-mapping §3.1 / §7
+ * item 1). The current message state is required because Graph's category PATCH
+ * replaces the array, so add/remove must be merged against what is already set.
+ */
+export interface OrganiseDecomposer {
+  decompose(message: OrganiseTargetMessage, intent: OrganiseIntent): GraphOperation[];
+}
+
+/** Add/remove category tags plus derived intents; at least one change required (FR-C8-2/3). */
 export interface OrganiseIntent {
+  /** Category names to add (the neutral "add label"). */
   readonly addLabelIds?: string[];
+  /** Category names to remove. */
   readonly removeLabelIds?: string[];
   readonly markRead?: boolean;
+  /** Move out of the Inbox to the Archive folder. */
   readonly archive?: boolean;
 }
 

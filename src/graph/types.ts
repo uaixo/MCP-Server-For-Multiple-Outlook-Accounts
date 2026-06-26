@@ -72,6 +72,24 @@ export interface GraphListResponse<T> {
   "@odata.count"?: number;
 }
 
+/** An Outlook category (tag) from `/me/outlook/masterCategories`. Applied to messages by name. */
+export interface GraphMasterCategory {
+  id: string;
+  displayName: string;
+  /** A `categoryColor` preset ("preset0".."preset24") or "none". */
+  color?: string;
+}
+
+/** An Outlook mail folder (location) from `/me/mailFolders`. */
+export interface GraphMailFolder {
+  id: string;
+  displayName: string;
+  parentFolderId?: string;
+  childFolderCount?: number;
+  totalItemCount?: number;
+  unreadItemCount?: number;
+}
+
 /** Render a recipient as `Display Name <addr>`, falling back to whichever part exists. */
 export function formatRecipient(r: GraphRecipient | undefined): string | undefined {
   const name = r?.emailAddress?.name?.trim();

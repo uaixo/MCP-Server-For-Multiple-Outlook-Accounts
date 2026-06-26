@@ -15,9 +15,10 @@ This is the **Outlook / Microsoft Graph** provider variant of a provider-neutral
 
 ---
 
-## Project status: phase 3 (write path)
+## Project status: phase 4 (organise path)
 
-Built with **TypeScript 6.0.3**; build, typecheck, tests (113), and format all green. What exists today:
+Built with **TypeScript 6.0.3**; build, typecheck, tests (139), and format all green. All eight
+capabilities are implemented. What exists today:
 
 - ✅ Architecture design + requirements traceability matrix (`doc/`).
 - ✅ **Auth core:** Entra credential-source discovery, MSAL public-client (consent + silent refresh),
@@ -31,9 +32,13 @@ Built with **TypeScript 6.0.3**; build, typecheck, tests (113), and format all g
   (`Display Name <addr>`), header-injection stripping, allow-listed/TOCTOU-safe attachments,
   local outgoing-size validation, reply threading, and a single `sendMail` call under the
   `nonDuplicable` retry policy so a retry can never double-deliver.
+- ✅ **Organise tools:** `list_labels` (C6), `create_label` (C7), and `organize_mail` (C8) — the
+  label-decomposition fan-out that maps one neutral organise request to the right mix of Graph
+  category-PATCH / `move` / read-state calls, applied per message across a conversation under a
+  bounded concurrency limit, reporting the union of resulting labels.
 
-**Not yet implemented:** capabilities **C6–C8** (labels, organise). These are designed
-in `doc/architecture.md` §13 (build phase 4) and tracked as _Planned_ in the traceability matrix.
+**Remaining:** phase 5 — hardening (full error mapping, cross-platform check) and onboarding docs.
+See `doc/architecture.md` §13.
 
 > Tests mock Microsoft Graph and MSAL. Live `§13` acceptance — real browser consent and Graph calls —
 > requires an Entra app registration + Outlook mailboxes and is run locally by the operator.
@@ -42,16 +47,16 @@ in `doc/architecture.md` §13 (build phase 4) and tracked as _Planned_ in the tr
 
 ## Capabilities (spec §5)
 
-| Tool                   | Purpose                    | Destructive? | Status     |
-| ---------------------- | -------------------------- | ------------ | ---------- |
-| `list_accounts`        | List connected mailboxes   | No           | ✅ live    |
-| `search_conversations` | Search a mailbox (paged)   | No           | ✅ live    |
-| `read_conversation`    | Read a full conversation   | No           | ✅ live    |
-| `create_draft`         | Compose a draft (not sent) | No           | ✅ live    |
-| `send_message`         | Send immediately           | **Yes**      | ✅ live    |
-| `list_labels`          | List categories + folders  | No           | ◻ phase 4 |
-| `create_label`         | Create a category/folder   | No           | ◻ phase 4 |
-| `organize_mail`        | Tag / move / read-state    | **Yes**      | ◻ phase 4 |
+| Tool                   | Purpose                    | Destructive? | Status  |
+| ---------------------- | -------------------------- | ------------ | ------- |
+| `list_accounts`        | List connected mailboxes   | No           | ✅ live |
+| `search_conversations` | Search a mailbox (paged)   | No           | ✅ live |
+| `read_conversation`    | Read a full conversation   | No           | ✅ live |
+| `create_draft`         | Compose a draft (not sent) | No           | ✅ live |
+| `send_message`         | Send immediately           | **Yes**      | ✅ live |
+| `list_labels`          | List categories + folders  | No           | ✅ live |
+| `create_label`         | Create a category/folder   | No           | ✅ live |
+| `organize_mail`        | Tag / move / read-state    | **Yes**      | ✅ live |
 
 Plus an out-of-band account-management CLI (`outlook-mcp-auth connect | list | remove`).
 

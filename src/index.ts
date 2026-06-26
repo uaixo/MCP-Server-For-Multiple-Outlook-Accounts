@@ -303,7 +303,9 @@ export function createServer(deps: ServerDeps): McpServer {
       description:
         "Apply organisation changes to exactly one target — a conversation OR a single message. " +
         "Add/remove category labels, mark read/unread, and/or archive (remove from Inbox). " +
-        "At least one change is required. Applied to a conversation, it affects every message.",
+        "At least one change is required. Applied to a conversation, it affects every message. " +
+        "Idempotent: if a conversation is only partially updated before an error, re-running the " +
+        "same request safely finishes it.",
       inputSchema: {
         account: z.string().optional(),
         conversation_id: z.string().optional(),

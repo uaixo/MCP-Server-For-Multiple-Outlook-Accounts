@@ -26,6 +26,15 @@ export const MAX_PAGE_SIZE = 100;
  */
 export const MAX_OUTGOING_MESSAGE_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Max size of a SINGLE attachment in v1. Attachments are sent as inline
+ * `fileAttachment` resources in one request, which Microsoft Graph limits to
+ * ~3 MB per file; larger files require an upload session (not implemented in
+ * v1). Enforced locally so an attachment Graph would reject fails fast with an
+ * accurate message (NFR-PERF-3).
+ */
+export const MAX_INLINE_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+
 /** Clamp a string to a character budget, appending an ellipsis when truncated. */
 export function clampText(
   text: string,

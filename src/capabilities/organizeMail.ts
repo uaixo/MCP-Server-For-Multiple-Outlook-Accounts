@@ -12,6 +12,11 @@
  * Validation runs before any Graph call (FR-C8-1/2 / FR-ERR-3): exactly one
  * target, and at least one change.
  *
+ * Partial application: a conversation fan-out is not transactional. If a
+ * per-message op fails, messages processed before it keep their change and the
+ * call rejects (no structured result). Because the operation is idempotent,
+ * simply re-running the same request safely converges the whole conversation.
+ *
  * Annotations (NFR-OPS-4): write, destructive (removals/moves are non-additive),
  * idempotent (re-applying converges), open-world.
  */

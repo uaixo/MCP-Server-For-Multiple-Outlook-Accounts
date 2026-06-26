@@ -1,4 +1,17 @@
 /**
+ * Decode a numeric character reference to text, ignoring out-of-range or invalid
+ * code points (so a crafted entity like `&#9999999999;` can't throw).
+ */
+function safeCodePoint(code: number): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return "";
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Minimal HTML → readable plain text (FR-C3-3).
  *
  * Not a full renderer: strips scripts/styles and tags, turns block elements
@@ -18,7 +31,8 @@ export function htmlToText(html: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => safeCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => safeCodePoint(Number(dec)))
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")

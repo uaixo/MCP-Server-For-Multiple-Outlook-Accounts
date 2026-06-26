@@ -45,4 +45,25 @@ describe("BoundedConcurrency (NFR-REL-4)", () => {
     ];
     await expect(limiter.run(tasks)).rejects.toThrow(/boom/);
   });
+
+  it("stops dispatching new tasks after the first failure", async () => {
+    const limiter = new BoundedConcurrency(1); // serial: failure happens before later tasks
+    let ran = 0;
+    const tasks = [
+      async () => {
+        ran += 1;
+        throw new Error("stop");
+      },
+      async () => {
+        ran += 1;
+        return 0;
+      },
+      async () => {
+        ran += 1;
+        return 0;
+      },
+    ];
+    await expect(limiter.run(tasks)).rejects.toThrow(/stop/);
+    expect(ran).toBe(1); // the two tasks after the failure never start
+  });
 });

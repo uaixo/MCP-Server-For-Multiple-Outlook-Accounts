@@ -34,8 +34,8 @@ function buildApp(source: CredentialSource): PublicClientApplication {
   });
 }
 
-/** Open the system browser for the consent URL, cross-platform (NFR-OPS-1). */
-function defaultOpenBrowser(url: string): Promise<void> {
+/** Open the system browser for the consent URL, cross-platform (NFR-OPS-1). Exported for testing. */
+export function defaultOpenBrowser(url: string): Promise<void> {
   const [cmd, args] =
     process.platform === "win32"
       ? ["cmd", ["/c", "start", "", url]]
@@ -43,6 +43,14 @@ function defaultOpenBrowser(url: string): Promise<void> {
         ? ["open", [url]]
         : ["xdg-open", [url]];
   const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+  // The opener binary may be missing (e.g. headless Linux without xdg-open).
+  // An unhandled 'error' event would crash the process, so swallow it and print
+  // the URL so the user can open it manually; consent then completes normally.
+  child.on("error", () => {
+    process.stderr.write(
+      `Could not launch a browser automatically. Open this URL to continue:\n${url}\n`,
+    );
+  });
   child.unref();
   return Promise.resolve();
 }

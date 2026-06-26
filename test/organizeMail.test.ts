@@ -97,7 +97,9 @@ describe("organizeMail (C8) — whole conversation (FR-C8-4)", () => {
       markRead: true,
     });
 
-    // One enumeration GET, then a PATCH per message.
+    // One enumeration GET (newest-first), then a PATCH per message.
+    const enumGet = calls.find((c) => c.method === "GET" && c.path === "/me/messages")!;
+    expect(enumGet.query?.$orderby).toBe("receivedDateTime desc");
     const patches = calls.filter((c) => c.method === "PATCH");
     expect(patches).toHaveLength(2);
     expect(patches.map((p) => p.path).sort()).toEqual(["/me/messages/m1", "/me/messages/m2"]);

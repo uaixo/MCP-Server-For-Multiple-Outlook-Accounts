@@ -58,8 +58,10 @@ async function toToolResult<T>(fn: () => Promise<ToolResult<T>>): Promise<{
       structuredContent: result.structured as unknown as Record<string, unknown>,
     };
   } catch (e) {
+    // Redact before returning: an unexpected error may carry secret material,
+    // and the tool result is handed to the host/model (NFR-SEC-6).
     return {
-      content: [{ type: "text", text: e instanceof Error ? e.message : String(e) }],
+      content: [{ type: "text", text: redactError(e) }],
       isError: true,
     };
   }

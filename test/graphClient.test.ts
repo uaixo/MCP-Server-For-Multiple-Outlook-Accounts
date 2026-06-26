@@ -74,6 +74,50 @@ describe("FetchGraphClient (NFR-REL-1, FR-ERR-1)", () => {
     expect(out).toBeUndefined();
   });
 
+  it("refuses an absolute URL on a non-Graph host without fetching or minting a token (SSRF guard)", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
+    const getToken = vi.fn(async () => "tok-secret");
+    const c = new FetchGraphClient({
+      requestTimeoutMs: 30_000,
+      getToken,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      retry: { maxRetries: 3, sleep: async () => undefined },
+    });
+
+    await expect(
+      c.request(account, {
+        method: "GET",
+        path: "https://evil.example/collect",
+        retryClass: "safe",
+      }),
+    ).rejects.toThrow(/non-Microsoft-Graph host/i);
+
+    // The token is never minted and no request is ever sent to the attacker host.
+    expect(getToken).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("still accepts an absolute nextLink on the Graph origin", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ value: [] }), { status: 200 }),
+    );
+    const c = client(fetchImpl as unknown as typeof fetch);
+    await c.request(account, {
+      method: "GET",
+      path: `${GRAPH_BASE}/me/messages?$skiptoken=abc`,
+      retryClass: "safe",
+    });
+    expect((fetchImpl as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+  });
+
+  it("maps a 2xx body that isn't JSON to a GraphError instead of throwing raw", async () => {
+    const fetchImpl = vi.fn(async () => new Response("<html>not json</html>", { status: 200 }));
+    const c = client(fetchImpl as unknown as typeof fetch);
+    await expect(
+      c.request(account, { method: "GET", path: "/me", retryClass: "safe" }),
+    ).rejects.toMatchObject({ name: "GraphError" });
+  });
+
   it("returns undefined for 202 Accepted with an empty body (sendMail)", async () => {
     const fetchImpl = vi.fn(async () => new Response("", { status: 202 }));
     const c = client(fetchImpl as unknown as typeof fetch);

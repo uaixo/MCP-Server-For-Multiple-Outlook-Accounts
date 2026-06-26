@@ -22,6 +22,7 @@
 import { open, realpath } from "node:fs/promises";
 import { basename, extname, resolve, sep } from "node:path";
 import type { AttachmentInput, AttachmentReader, ResolvedAttachment } from "../domain/contracts.js";
+import { MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
 import { sanitizeFilename } from "./sanitize.js";
 
 /** Minimal extension → MIME map; everything else is the generic binary type. */
@@ -54,12 +55,21 @@ function inferMime(filename: string, provided?: string): string {
   return MIME_BY_EXT[extname(filename).toLowerCase()] ?? DEFAULT_MIME;
 }
 
+function tooLarge(filename: string, size: number, maxBytes: number): Error {
+  const mb = (n: number) => (n / (1024 * 1024)).toFixed(1);
+  return new Error(
+    `Attachment "${filename}" is ${mb(size)} MB, over the ${mb(maxBytes)} MB limit.`,
+  );
+}
+
 /** Reads attachments from the filesystem, guarded by an allow-list (NFR-SEC-3/4). */
 export class FsAttachmentReader implements AttachmentReader {
   private readonly allowList: readonly string[];
+  private readonly maxBytes: number;
 
-  constructor(allowList: readonly string[]) {
+  constructor(allowList: readonly string[], maxBytes: number = MAX_OUTGOING_MESSAGE_BYTES) {
     this.allowList = allowList;
+    this.maxBytes = maxBytes;
   }
 
   async read(input: AttachmentInput): Promise<ResolvedAttachment> {
@@ -84,6 +94,9 @@ export class FsAttachmentReader implements AttachmentReader {
     }
     const bytes = decodeBase64(input.contentBase64!);
     const filename = sanitizeFilename(name);
+    if (bytes.byteLength > this.maxBytes) {
+      throw tooLarge(filename, bytes.byteLength, this.maxBytes); // NFR-PERF-3
+    }
     return { filename, mimeType: inferMime(filename, input.mimeType), bytes };
   }
 
@@ -113,6 +126,11 @@ export class FsAttachmentReader implements AttachmentReader {
       const stat = await handle.stat();
       if (!stat.isFile()) {
         throw new Error("Attachment path does not point to a regular file.");
+      }
+      // Reject oversize files BEFORE reading them into memory, so a giant file
+      // inside the allow-list can't exhaust memory (NFR-PERF-3).
+      if (stat.size > this.maxBytes) {
+        throw tooLarge(basename(realPath), stat.size, this.maxBytes);
       }
       const buffer = await handle.readFile();
       const filename = sanitizeFilename(input.filename?.trim() || basename(realPath));

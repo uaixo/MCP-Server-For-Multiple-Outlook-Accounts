@@ -106,3 +106,25 @@ describe("FsAttachmentReader — path guard (NFR-SEC-3/4)", () => {
     await expect(reader.read({ path: link })).rejects.toThrow(/outside the allowed directory/i);
   });
 });
+
+describe("FsAttachmentReader — size guard (NFR-PERF-3)", () => {
+  it("rejects an oversize file by stat.size before reading it", async () => {
+    const reader = new FsAttachmentReader([allowedDir], 4); // "PDFDATA" is 7 bytes
+    await expect(reader.read({ path: join(allowedDir, "report.pdf") })).rejects.toThrow(
+      /over the .* MB limit/i,
+    );
+  });
+
+  it("rejects oversize inline base64 content", async () => {
+    const reader = new FsAttachmentReader([], 4);
+    await expect(reader.read({ contentBase64: b64("hello"), filename: "n.txt" })).rejects.toThrow(
+      /over the .* MB limit/i,
+    );
+  });
+
+  it("accepts content within the limit", async () => {
+    const reader = new FsAttachmentReader([allowedDir], 1024);
+    const out = await reader.read({ path: join(allowedDir, "report.pdf") });
+    expect(toText(out.bytes)).toBe("PDFDATA");
+  });
+});

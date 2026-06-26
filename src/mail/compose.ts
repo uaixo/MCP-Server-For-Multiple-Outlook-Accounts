@@ -17,6 +17,7 @@
 import type { ComposeInput, ResolvedAttachment } from "../domain/contracts.js";
 import { MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
 import {
+  formatRecipient,
   toGraphRecipient,
   type GraphFileAttachment,
   type GraphInternetMessageHeader,
@@ -64,11 +65,6 @@ export function parseRecipient(raw: string): GraphRecipient {
 
 function parseList(values: readonly string[] | undefined): GraphRecipient[] {
   return (values ?? []).map(parseRecipient);
-}
-
-function formatRecipient(r: GraphRecipient): string {
-  const { name, address } = r.emailAddress ?? {};
-  return name ? `${name} <${address}>` : (address ?? "");
 }
 
 /** Default an omitted reply subject to the original prefixed with `Re:` (FR-C4-4). */
@@ -140,13 +136,16 @@ export function composeMessage(
     ...(headers ? { internetMessageHeaders: headers } : {}),
   };
 
+  // Each parsed recipient always has an address, so formatRecipient is non-empty;
+  // the `?? ""` is only to satisfy its `string | undefined` return type.
+  const display = (r: GraphRecipient): string => formatRecipient(r) ?? "";
   return {
     message,
     sizeBytes,
     recipients: {
-      to: to.map(formatRecipient),
-      cc: cc.map(formatRecipient),
-      bcc: bcc.map(formatRecipient),
+      to: to.map(display),
+      cc: cc.map(display),
+      bcc: bcc.map(display),
     },
   };
 }

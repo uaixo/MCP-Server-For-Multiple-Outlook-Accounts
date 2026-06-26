@@ -17,13 +17,17 @@
  *
  * Filenames/MIME types are inferred when omitted; inline content must name its
  * file. Filenames are sanitized so they cannot inject mail headers (NFR-SEC-5).
+ *
+ * Size: each attachment is bounded by `MAX_INLINE_ATTACHMENT_BYTES` (~3 MB),
+ * the limit for a `fileAttachment` sent inline in one Graph request. Larger
+ * files need an upload session, which v1 does not implement.
  */
 
 import { open, realpath, type FileHandle } from "node:fs/promises";
 import { constants as FS } from "node:fs";
 import { basename, extname, resolve, sep } from "node:path";
 import type { AttachmentInput, AttachmentReader, ResolvedAttachment } from "../domain/contracts.js";
-import { MAX_OUTGOING_MESSAGE_BYTES } from "../output/contract.js";
+import { MAX_INLINE_ATTACHMENT_BYTES } from "../output/contract.js";
 import { sanitizeFilename } from "./sanitize.js";
 
 /**
@@ -78,7 +82,7 @@ export class FsAttachmentReader implements AttachmentReader {
   private readonly allowList: readonly string[];
   private readonly maxBytes: number;
 
-  constructor(allowList: readonly string[], maxBytes: number = MAX_OUTGOING_MESSAGE_BYTES) {
+  constructor(allowList: readonly string[], maxBytes: number = MAX_INLINE_ATTACHMENT_BYTES) {
     this.allowList = allowList;
     this.maxBytes = maxBytes;
   }

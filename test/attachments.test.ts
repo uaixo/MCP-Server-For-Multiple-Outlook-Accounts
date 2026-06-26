@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile, symlink, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FsAttachmentReader } from "../src/mail/attachments.js";
+import { MAX_INLINE_ATTACHMENT_BYTES } from "../src/output/contract.js";
 
 let root: string;
 let allowedDir: string;
@@ -136,5 +137,13 @@ describe("FsAttachmentReader — size guard (NFR-PERF-3)", () => {
     const reader = new FsAttachmentReader([allowedDir], 1024);
     const out = await reader.read({ path: join(allowedDir, "report.pdf") });
     expect(toText(out.bytes)).toBe("PDFDATA");
+  });
+
+  it("defaults to the inline (~3 MB) attachment limit", async () => {
+    const reader = new FsAttachmentReader([]); // default maxBytes
+    const oversize = Buffer.alloc(MAX_INLINE_ATTACHMENT_BYTES + 1).toString("base64");
+    await expect(reader.read({ contentBase64: oversize, filename: "big.bin" })).rejects.toThrow(
+      /over the .* MB limit/i,
+    );
   });
 });

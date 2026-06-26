@@ -245,9 +245,9 @@ guarantee (FR-C5-4).
 | Control | Design | Req |
 | --- | --- | --- |
 | Local secrets | Token store file `chmod 600` inside a `chmod 700` data dir; nothing transits a third party. | NFR-SEC-1 |
-| Atomic, locked writes | Write temp file → `fsync` → `rename`; guard with a cross-process lock (`util/lock.ts`) with stale-lock recovery so server-refresh and CLI-connect can't clobber each other. | NFR-SEC-2 |
+| Atomic, locked writes | Write temp file → `fsync` (via an open handle) → `rename`; guard with a cross-process lock (`util/lock.ts`). Lock **staleness is decoupled** from the acquire timeout (`staleMs`, default 60s) so a slow-but-live writer is never stolen from. | NFR-SEC-2 |
 | Attachment path guard | `path` attachments **disabled** unless `OUTLOOK_MCP_ATTACHMENTS_DIR` is set; the resolved real path (symlinks, `..`) must fall inside an allowed dir **before** reading. Inline base64 always works. | NFR-SEC-3 |
-| TOCTOU-safe read | Open the resolved file **once**, validate via the open handle, read from that handle — no check-then-reopen window. | NFR-SEC-4 |
+| TOCTOU-safe read | Open the resolved file **once** with `O_NOFOLLOW` (where supported) so the final segment can't be swapped for a symlink after resolution; validate + read via that handle — no check-then-reopen window. | NFR-SEC-4 |
 | Header-injection safe | Strip CR/LF from recipients, subject, filenames (`mail/sanitize.ts`) so a display name / subject can't inject headers. | NFR-SEC-5 |
 | No secret logging | Never log tokens, credentials, or message bodies; `util/redact` scrubs secret shapes at every stderr boundary; tool-error text is redacted too. | NFR-SEC-6 |
 | Token-egress pinning | `graph/client` attaches the access token only to requests whose origin is `graph.microsoft.com`; an absolute URL (e.g. a `page_token` cursor) pointing elsewhere is refused, so the token can't be exfiltrated via a crafted URL. | NFR-SEC-6 |

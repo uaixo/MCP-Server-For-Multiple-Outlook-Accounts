@@ -15,9 +15,11 @@
 **Current phase:** **Phase 5 complete** — hardening + onboarding: a secret-redaction boundary
 enforcing NFR-SEC-6 across all stderr log sites, and the operator onboarding guide
 ([`ONBOARDING.md`](./ONBOARDING.md)) covering Entra app registration, the unverified-app consent
-policy (CON-3), and the CLI (ASM-1). On top of phases 1–4 (all eight capabilities C1–C8). **148
-tests** pass (Graph/MSAL mocked). The offline build is feature-complete; the only remaining items
-are the **live** acceptance runs the operator performs against a real mailbox.
+policy (CON-3), and the CLI (ASM-1). On top of phases 1–4 (all eight capabilities C1–C8), plus the
+optional enhancements (HANDOVER §4.3): large-attachment upload sessions (C4/C5), trash/junk organise
+moves (C8), and recursive folder enumeration (C6). **179 tests** pass (Graph/MSAL mocked). The
+offline build is feature-complete; the only remaining items are the **live** acceptance runs the
+operator performs against a real mailbox.
 
 > **Delegated-to-MSAL note:** the loopback redirect, PKCE (S256), and CSRF `state`
 > (FR-AUTH-2/3/4, NFR-SEC-7) are satisfied by MSAL's `acquireTokenInteractive` and marked
@@ -43,17 +45,17 @@ are the **live** acceptance runs the operator performs against a real mailbox.
 | FR-C3-3 | HTML → readable plain text | `util/html`, `capabilities/readConversation` | `outputContract.test`, `readConversation.test` | ✅ |
 | FR-C4-1 | Compose to/cc/bcc/subject/body/is_html | `mail/compose`, `capabilities/createDraft` | `compose.test`, `createDraft.test` | ✅ |
 | FR-C4-2 | Persist draft, do not send | `capabilities/createDraft` | `createDraft.test` | ✅ |
-| FR-C4-3 | Attachment: path XOR inline base64 | `mail/attachments`, `mail/compose` | `attachments.test`, `compose.test` | ✅ |
+| FR-C4-3 | Attachment: path XOR inline base64 (inline ≤ ~3 MB, larger via upload session) | `mail/attachments`, `mail/compose`, `mail/uploadSession` | `attachments.test`, `compose.test`, `uploadSession.test` | ✅ |
 | FR-C4-4 | Reply drafting + `Re:` default subject | `mail/compose`, `mail/replyLookup`, `capabilities/createDraft` | `compose.test`, `createDraft.test` | ✅ |
 | FR-C4-5 | Recipient forms + injection prevention | `mail/compose`, `mail/sanitize` | `sanitize.test`, `compose.test` | ✅ |
 | FR-C5-1 | Send: same inputs + reply-to ref | `capabilities/sendMessage`, `mail/replyLookup` | `sendMessage.test` | ✅ |
 | FR-C5-2 | Deliver immediately (irreversible) | `capabilities/sendMessage` | `sendMessage.test` | ✅ |
 | FR-C5-3 | Annotated destructive | `index` (tool registration) | `toolsAnnotations.test` | ✅ |
 | FR-C5-4 | No duplicate delivery under retry | `graph/retry`, `capabilities/sendMessage` | `graphRetry.test`, `sendMessage.test` | ✅ |
-| FR-C6-1 | List labels: id, name, type | `capabilities/listLabels`, `graph/paginate` | `listLabels.test` | ✅ |
+| FR-C6-1 | List labels: id, name, type (folders enumerated recursively, full paths) | `capabilities/listLabels`, `graph/folders`, `graph/paginate` | `listLabels.test`, `folders.test` | ✅ |
 | FR-C6-2 | Output is id source for C8 | `capabilities/listLabels` | `listLabels.test` | ✅ |
 | FR-C7-1 | Create user label (+nesting via folders) | `capabilities/createLabel` | `createLabel.test` | ✅ |
-| FR-C8-1..6 | Organise mail (fan-out: category/move/isRead) | `organise/decompose`, `capabilities/organizeMail`, `util/bounded` | `decompose.test`, `organizeMail.test` | ✅ |
+| FR-C8-1..6 | Organise mail (fan-out: category/isRead/move — archive, trash, junk) | `organise/decompose`, `capabilities/organizeMail`, `util/bounded` | `decompose.test`, `organizeMail.test` | ✅ |
 
 ## 2. Account & identity model (spec §7)
 

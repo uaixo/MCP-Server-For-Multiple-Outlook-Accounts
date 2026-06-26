@@ -130,7 +130,12 @@ export interface OrganiseDecomposer {
   decompose(message: OrganiseTargetMessage, intent: OrganiseIntent): GraphOperation[];
 }
 
-/** Add/remove category tags plus derived intents; at least one change required (FR-C8-2/3). */
+/**
+ * Add/remove category tags plus derived intents; at least one change required
+ * (FR-C8-2/3). `archive`/`trash`/`junk` are mutually exclusive moves — a message
+ * can only live in one folder — and the capability validates that at most one is
+ * set (FR-C8-3, provider-mapping §3.1).
+ */
 export interface OrganiseIntent {
   /** Category names to add (the neutral "add label"). */
   readonly addLabelIds?: string[];
@@ -139,11 +144,25 @@ export interface OrganiseIntent {
   readonly markRead?: boolean;
   /** Move out of the Inbox to the Archive folder. */
   readonly archive?: boolean;
+  /** Move to Deleted Items (recoverable trash). */
+  readonly trash?: boolean;
+  /** Move to Junk Email (spam). */
+  readonly junk?: boolean;
 }
 
 /** Reads attachment bytes safely: path reads only within the allow-list, opened once and validated via the handle (NFR-SEC-3/4). */
 export interface AttachmentReader {
   read(input: AttachmentInput): Promise<ResolvedAttachment>;
+}
+
+/**
+ * Uploads a large attachment (> the inline limit) to an existing draft message
+ * via a Microsoft Graph upload session — `createUploadSession` then chunked PUTs
+ * to the Graph-issued upload URL. Lifts the ~3 MB inline ceiling toward the
+ * message size cap (provider-mapping §3, attachment notes).
+ */
+export interface AttachmentUploader {
+  upload(account: Account, messageId: string, attachment: ResolvedAttachment): Promise<void>;
 }
 
 /**

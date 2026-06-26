@@ -27,12 +27,14 @@ import { createLabel } from "./capabilities/createLabel.js";
 import { organizeMail } from "./capabilities/organizeMail.js";
 import type { OutgoingArgs } from "./capabilities/outgoing.js";
 import { FsAttachmentReader } from "./mail/attachments.js";
+import { GraphAttachmentUploader } from "./mail/uploadSession.js";
 import { BoundedConcurrency } from "./util/bounded.js";
 import { redactError } from "./util/redact.js";
 import { MAX_PAGE_SIZE } from "./output/contract.js";
 import type {
   AccountRegistry,
   AttachmentReader,
+  AttachmentUploader,
   ConcurrencyLimiter,
   GraphClient,
 } from "./domain/contracts.js";
@@ -42,6 +44,7 @@ export interface ServerDeps {
   readonly registry: AccountRegistry;
   readonly graph: GraphClient;
   readonly attachments: AttachmentReader;
+  readonly uploader: AttachmentUploader;
   readonly limiter: ConcurrencyLimiter;
 }
 
@@ -228,7 +231,8 @@ export function createServer(deps: ServerDeps): McpServer {
       description:
         "Compose a draft email (recipients, subject, body, optional attachments) and save it to " +
         "the account's Drafts. The draft is NOT sent. Recipients accept 'addr' or " +
-        "'Display Name <addr>'. Attachments are each a local path (allow-listed) OR inline base64. " +
+        "'Display Name <addr>'. Attachments are each a local path (allow-listed) OR inline base64; " +
+        "large files (over ~3 MB) are uploaded via an upload session. " +
         "Pass reply_to_conversation_id to draft a threaded reply.",
       inputSchema: composeInputSchema,
       annotations: WRITE_ANNOTATIONS,
@@ -302,10 +306,11 @@ export function createServer(deps: ServerDeps): McpServer {
       title: "Organise mail",
       description:
         "Apply organisation changes to exactly one target — a conversation OR a single message. " +
-        "Add/remove category labels, mark read/unread, and/or archive (remove from Inbox). " +
-        "At least one change is required. Applied to a conversation, it affects every message. " +
-        "Idempotent: if a conversation is only partially updated before an error, re-running the " +
-        "same request safely finishes it.",
+        "Add/remove category labels, mark read/unread, and/or move the mail: archive (remove from " +
+        "Inbox), trash (Deleted Items), or junk (Junk Email). archive/trash/junk are mutually " +
+        "exclusive. At least one change is required. Applied to a conversation, it affects every " +
+        "message. Idempotent: if a conversation is only partially updated before an error, " +
+        "re-running the same request safely finishes it.",
       inputSchema: {
         account: z.string().optional(),
         conversation_id: z.string().optional(),
@@ -314,6 +319,8 @@ export function createServer(deps: ServerDeps): McpServer {
         remove_labels: z.array(z.string()).optional(),
         mark_read: z.boolean().optional(),
         archive: z.boolean().optional(),
+        trash: z.boolean().optional(),
+        junk: z.boolean().optional(),
       },
       annotations: ORGANISE_ANNOTATIONS,
     },
@@ -327,6 +334,8 @@ export function createServer(deps: ServerDeps): McpServer {
           removeLabels: args.remove_labels,
           markRead: args.mark_read,
           archive: args.archive,
+          trash: args.trash,
+          junk: args.junk,
         }),
       ),
   );
@@ -346,9 +355,13 @@ async function main(): Promise<void> {
     getToken: createMsalTokenProvider({ config, tokenStore: store }),
   });
   const attachments = new FsAttachmentReader(config.attachmentsAllowList);
+  const uploader = new GraphAttachmentUploader({
+    graph,
+    requestTimeoutMs: config.requestTimeoutMs,
+  });
   const limiter = new BoundedConcurrency();
 
-  const server = createServer({ registry, graph, attachments, limiter });
+  const server = createServer({ registry, graph, attachments, uploader, limiter });
   await server.connect(new StdioServerTransport());
 
   // Report connected accounts to stderr (NFR-OPS-2) — never stdout (JSON-RPC) or secrets (NFR-SEC-6).

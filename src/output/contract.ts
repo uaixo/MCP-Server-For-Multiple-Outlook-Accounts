@@ -27,13 +27,19 @@ export const MAX_PAGE_SIZE = 100;
 export const MAX_OUTGOING_MESSAGE_BYTES = 25 * 1024 * 1024;
 
 /**
- * Max size of a SINGLE attachment in v1. Attachments are sent as inline
- * `fileAttachment` resources in one request, which Microsoft Graph limits to
- * ~3 MB per file; larger files require an upload session (not implemented in
- * v1). Enforced locally so an attachment Graph would reject fails fast with an
- * accurate message (NFR-PERF-3).
+ * Threshold at/below which an attachment is sent INLINE as a `fileAttachment` in
+ * the message request (one call). Microsoft Graph caps an inline `fileAttachment`
+ * at ~3 MB; larger files are uploaded to the draft via an upload session instead
+ * (mail/uploadSession.ts). The total message is still bounded by
+ * {@link MAX_OUTGOING_MESSAGE_BYTES}.
  */
 export const MAX_INLINE_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+
+/**
+ * Chunk size for upload-session PUTs. Microsoft Graph requires every chunk except
+ * the last to be a multiple of 320 KiB; this is 10 × 320 KiB (~3.1 MB).
+ */
+export const UPLOAD_CHUNK_BYTES = 10 * 320 * 1024;
 
 /** Clamp a string to a character budget, appending an ellipsis when truncated. */
 export function clampText(

@@ -72,6 +72,17 @@ export interface GraphListResponse<T> {
   "@odata.count"?: number;
 }
 
+/**
+ * Response of `POST …/attachments/createUploadSession`. `uploadUrl` is a
+ * Graph-issued, pre-authenticated URL on a non-Graph host that chunk PUTs target
+ * (mail/uploadSession.ts) — no access token is sent to it.
+ */
+export interface GraphUploadSession {
+  uploadUrl: string;
+  expirationDateTime?: string;
+  nextExpectedRanges?: string[];
+}
+
 /** An Outlook category (tag) from `/me/outlook/masterCategories`. Applied to messages by name. */
 export interface GraphMasterCategory {
   id: string;

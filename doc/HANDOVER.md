@@ -10,8 +10,8 @@
 ## 1. TL;DR
 
 - **The offline build is feature-complete.** All eight capabilities (C1–C8) are implemented,
-  spec-traced, and tested; two rounds of code review are fully addressed.
-- **165 tests pass** (Graph + MSAL mocked). `typecheck` (now covering `src` **and** `test`),
+  spec-traced, and tested; two rounds of code review and the §4.3 optional enhancements are done.
+- **179 tests pass** (Graph + MSAL mocked). `typecheck` (now covering `src` **and** `test`),
   `build`, and `format:check` are clean; CI is green across ubuntu/macOS/windows × Node 20 & 22,
   a Node-18 runtime smoke, and gitleaks.
 - **The only remaining work is the LIVE acceptance run** — real browser consent + real Microsoft
@@ -82,10 +82,13 @@ mailbox is needed to confirm (spec §13.2/§13.3; set up via [`ONBOARDING.md`](.
       and HTML→text rendering against real mail.
 - [ ] **C4/C5 write** — draft creation; `sendMail` actually delivers; **no duplicate** under an
       induced transient failure; **reply threading** — confirm Graph honours the
-      `In-Reply-To`/`References` internet headers (see §4.2); the effective outgoing-size limit.
-- [ ] **C6/C7/C8 organise** — category vs. folder listing; category/folder creation (incl. nested
-      folder); the category-PATCH / `move` fan-out and the conversation-wide **union** report;
-      `destinationId: "archive"` well-known move.
+      `In-Reply-To`/`References` internet headers (see §4.2); the effective outgoing-size limit;
+      **a > 3 MB attachment** uploads via the session (createUploadSession + chunked PUTs) and the
+      create-draft → upload → send path delivers exactly once.
+- [ ] **C6/C7/C8 organise** — category vs. folder listing **including nested folders (full paths)**;
+      category/folder creation (incl. nested folder); the category-PATCH / `move` fan-out and the
+      conversation-wide **union** report; the `archive` / `trash` (`deleteditems`) / `junk`
+      (`junkemail`) well-known moves.
 - [ ] **Host gating** — the MCP host actually prompts on the `destructiveHint: true` tools
       (`send_message`, `organize_mail`) (CON-2).
 
@@ -93,16 +96,15 @@ As each passes, flip the corresponding §11 row in `traceability-matrix.md` and 
 
 ### 4.2 Known limitations (by design / live-confirmed — documented, not bugs)
 
-- **Attachments > ~3 MB are not supported.** v1 sends each attachment inline (`fileAttachment` in
-  one request), which Graph caps at ~3 MB. `MAX_INLINE_ATTACHMENT_BYTES` enforces this locally with
-  a clear error. Larger files need a **Graph upload session** (see §4.3).
+- **Attachments are capped at the message size (~25 MB).** Files at/under the inline limit
+  (`MAX_INLINE_ATTACHMENT_BYTES`, ~3 MB) ride inline as `fileAttachment`; larger ones are uploaded
+  to the draft via a **Graph upload session** (`mail/uploadSession.ts`). Per-attachment and whole-
+  message size are still bounded locally (`MAX_OUTGOING_MESSAGE_BYTES`). *(Live-confirm the
+  effective mailbox limit and that chunked PUTs to the upload URL succeed — §4.1.)*
 - **Reply threading uses RFC-5322 `In-Reply-To`/`References` headers** set in `compose.ts`. This is
   the pure, testable approach; whether Graph honours those headers on a structured `POST` is a
   live-confirmed item (§4.1). If Graph drops them, switch to `POST /me/messages/{id}/createReply`
   then patch — see provider-mapping §2.
-- **`list_labels` (C6) lists top-level folders only** — nested child folders aren't recursively
-  enumerated in v1. A folder created via C7 with a `parentFolderId` won't appear under C6 until
-  recursion is added.
 - **Organise is not transactional.** A conversation fan-out that fails midway leaves earlier
   messages changed and rejects; because C8 is idempotent, **re-running** safely finishes it. The
   tool description says so.
@@ -112,16 +114,20 @@ As each passes, flip the corresponding §11 row in `traceability-matrix.md` and 
 - **CON-2** (the host honours destructive annotations) is the host's responsibility — the server
   only declares the annotations.
 
-### 4.3 Optional enhancements (NOT required by the spec — pick up only if wanted)
+### 4.3 Optional enhancements
 
-- **Large-attachment upload sessions** — implement `createUploadSession` to lift the ~3 MB ceiling
-  toward the ~25 MB message cap (would also let `compose`'s 25 MB guard become the real limit).
-- **More organise intents** — the architecture §6 fan-out table also covers **trash** and **junk**
-  moves; only `archive` is wired today. `decompose.ts` is structured to extend (add a destination
-  to `OrganiseIntent` + a move op).
-- **Recursive folder listing in C6** — enumerate child folders so nested folders are discoverable.
-- **Hex-`x` MIME / richer entity handling** is done; broader HTML rendering could be improved if
-  real mail surfaces gaps.
+All three structural enhancements below are now **implemented** (`mail/uploadSession.ts`,
+`graph/folders.ts`, `organise/decompose.ts`). What remains is genuinely optional polish.
+
+- ✅ **Large-attachment upload sessions** — `createUploadSession` + chunked PUTs lift the ~3 MB
+  inline ceiling toward the message cap (`mail/uploadSession.ts`; C4/C5).
+- ✅ **More organise intents** — `archive`, **`trash`** (Deleted Items), and **`junk`** (Junk Email)
+  moves are all wired in `decompose.ts` / `organize_mail` (mutually exclusive).
+- ✅ **Recursive folder listing in C6** — `graph/folders.ts` enumerates child folders; `list_labels`
+  reports each folder's full path (e.g. `Inbox/Clients/Acme`).
+- ◻ **Still optional:** richer HTML→text rendering if real mail surfaces gaps; further organise
+  destinations beyond archive/trash/junk; per-segment `openat` to close the residual attachment
+  TOCTOU window (§4.2).
 
 ---
 

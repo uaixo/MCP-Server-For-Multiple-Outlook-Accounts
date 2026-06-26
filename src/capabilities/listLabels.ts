@@ -9,16 +9,23 @@
  * result is the id-discovery source for organize_mail (C8, FR-C6-2). Category ids
  * are their names (that is how C8 adds/removes them); folder ids are folder ids.
  *
- * Scope note: top-level folders are listed (the `GET /me/mailFolders` set);
- * nested child folders are not recursively enumerated in v1.
+ * Folders are enumerated recursively (graph/folders.ts), so nested folders are
+ * discoverable; each folder's `display_name` is its full path (e.g.
+ * `Inbox/Clients/Acme`) while its `id` stays the Graph folder id used by C8.
  *
  * Annotations (NFR-OPS-4): read-only, non-destructive, idempotent, open-world.
  */
 
-import type { AccountRegistry, GraphClient, GraphRequest } from "../domain/contracts.js";
+import type {
+  AccountRegistry,
+  ConcurrencyLimiter,
+  GraphClient,
+  GraphRequest,
+} from "../domain/contracts.js";
 import type { ToolResult } from "../domain/types.js";
-import type { GraphMailFolder, GraphMasterCategory } from "../graph/types.js";
+import type { GraphMasterCategory } from "../graph/types.js";
 import { collectPaged } from "../graph/paginate.js";
+import { collectFolderTree } from "../graph/folders.js";
 import { clampText } from "../output/contract.js";
 
 /** Bound the number of labels returned (categories + folders). */
@@ -57,6 +64,7 @@ export interface ListLabelsStructured {
 export interface ListLabelsDeps {
   readonly registry: AccountRegistry;
   readonly graph: GraphClient;
+  readonly limiter: ConcurrencyLimiter;
 }
 
 export async function listLabels(
@@ -70,16 +78,10 @@ export async function listLabels(
     path: "/me/outlook/masterCategories",
     retryClass: "safe",
   };
-  const foldersReq: GraphRequest = {
-    method: "GET",
-    path: "/me/mailFolders",
-    query: { $top: 100, $select: "id,displayName,parentFolderId,childFolderCount" },
-    retryClass: "safe",
-  };
 
-  const [categories, folders] = await Promise.all([
+  const [categories, folderTree] = await Promise.all([
     collectPaged<GraphMasterCategory>(deps.graph, account, categoriesReq, MAX_LABELS),
-    collectPaged<GraphMailFolder>(deps.graph, account, foldersReq, MAX_LABELS),
+    collectFolderTree(deps.graph, account, deps.limiter, MAX_LABELS),
   ]);
 
   const labels: LabelOut[] = [
@@ -90,15 +92,17 @@ export async function listLabels(
       kind: "category" as const,
       system: false,
     })),
-    ...folders.items.map((f) => ({
+    ...folderTree.folders.map((f) => ({
       id: f.id,
-      display_name: f.displayName,
+      display_name: f.path, // full path so nested folders are distinguishable
       kind: "folder" as const,
-      system: SYSTEM_FOLDERS.has(f.displayName),
+      // Only a well-known top-level folder is "system" — a user subfolder named
+      // e.g. "Archive" is not.
+      system: f.depth === 0 && SYSTEM_FOLDERS.has(f.name),
     })),
   ];
 
-  const truncated = categories.truncated || folders.truncated;
+  const truncated = categories.truncated || folderTree.truncated;
   const structured: ListLabelsStructured = {
     account: account.displayId,
     label_count: labels.length,
@@ -109,10 +113,11 @@ export async function listLabels(
   const fmt = (l: LabelOut) =>
     `- [${l.kind}] ${l.display_name}${l.system ? " (system)" : ""}` +
     (l.kind === "folder" ? `  (id: ${l.id})` : "");
+  const folderCount = folderTree.folders.length;
   const header =
     `${labels.length} label(s) in ${account.displayId} ` +
     `(${categories.items.length} categor${categories.items.length === 1 ? "y" : "ies"}, ` +
-    `${folders.items.length} folder(s))${truncated ? " — truncated" : ""}:`;
+    `${folderCount} folder(s))${truncated ? " — truncated" : ""}:`;
   const summary = clampText([header, ...labels.map(fmt)].join("\n")).text;
 
   return { summary, structured };

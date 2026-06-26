@@ -7,6 +7,9 @@
  * The call is `nonDuplicable`: a draft create must not be replayed on an
  * ambiguous failure, so only a pre-processing 429 is retried (NFR-REL-3).
  *
+ * Attachments at/under the inline limit ride inside that request; larger ones
+ * are uploaded to the created draft via an upload session (mail/uploadSession.ts).
+ *
  * Annotations (NFR-OPS-4): write, non-destructive (a draft is reversible),
  * non-idempotent, open-world.
  */
@@ -52,6 +55,13 @@ export async function createDraft(
     retryClass: "nonDuplicable",
   });
 
+  // Upload any large attachments to the freshly-created draft.
+  for (const attachment of composed.uploadAttachments) {
+    await deps.uploader.upload(account, created.id, attachment);
+  }
+
+  const hasAttachments =
+    (composed.message.attachments?.length ?? 0) + composed.uploadAttachments.length > 0;
   const structured: CreateDraftStructured = {
     account: account.displayId,
     draft_id: created.id,
@@ -61,7 +71,7 @@ export async function createDraft(
     cc: composed.recipients.cc,
     bcc: composed.recipients.bcc,
     subject: composed.message.subject,
-    has_attachments: (composed.message.attachments?.length ?? 0) > 0,
+    has_attachments: hasAttachments,
     is_reply: isReply,
   };
 

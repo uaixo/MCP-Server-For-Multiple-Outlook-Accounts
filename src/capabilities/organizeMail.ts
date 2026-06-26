@@ -48,6 +48,8 @@ export interface OrganizeMailArgs {
   readonly removeLabels?: string[];
   readonly markRead?: boolean;
   readonly archive?: boolean;
+  readonly trash?: boolean;
+  readonly junk?: boolean;
 }
 
 export interface OrganizeMailStructured {
@@ -59,6 +61,8 @@ export interface OrganizeMailStructured {
   readonly removed: string[];
   readonly marked_read?: boolean;
   readonly archived?: boolean;
+  readonly trashed?: boolean;
+  readonly junked?: boolean;
   /** Union of category labels applied across the targeted message(s) (FR-C8-4). */
   readonly labels: string[];
 }
@@ -75,6 +79,8 @@ function buildIntent(args: OrganizeMailArgs): OrganiseIntent {
     removeLabelIds: args.removeLabels,
     markRead: args.markRead,
     archive: args.archive,
+    trash: args.trash,
+    junk: args.junk,
   };
 }
 
@@ -83,8 +89,15 @@ function hasChange(args: OrganizeMailArgs): boolean {
     (args.addLabels?.length ?? 0) > 0 ||
     (args.removeLabels?.length ?? 0) > 0 ||
     args.markRead !== undefined ||
-    args.archive === true
+    args.archive === true ||
+    args.trash === true ||
+    args.junk === true
   );
+}
+
+/** Count the mutually exclusive move destinations requested (FR-C8-3). */
+function moveCount(args: OrganizeMailArgs): number {
+  return [args.archive, args.trash, args.junk].filter((m) => m === true).length;
 }
 
 export async function organizeMail(
@@ -102,7 +115,14 @@ export async function organizeMail(
   // FR-C8-2: at least one change.
   if (!hasChange(args)) {
     throw new Error(
-      "No changes requested. Provide at least one of add_labels, remove_labels, mark_read, or archive.",
+      "No changes requested. Provide at least one of add_labels, remove_labels, mark_read, " +
+        "archive, trash, or junk.",
+    );
+  }
+  // FR-C8-3: the moves are mutually exclusive (a message lives in one folder).
+  if (moveCount(args) > 1) {
+    throw new Error(
+      "Provide at most one of archive, trash, or junk (a message can only move to one folder).",
     );
   }
 
@@ -165,6 +185,8 @@ export async function organizeMail(
     removed: args.removeLabels ?? [],
     ...(args.markRead !== undefined ? { marked_read: args.markRead } : {}),
     ...(args.archive ? { archived: true } : {}),
+    ...(args.trash ? { trashed: true } : {}),
+    ...(args.junk ? { junked: true } : {}),
     labels,
   };
 
@@ -174,6 +196,8 @@ export async function organizeMail(
   if (structured.marked_read !== undefined)
     changes.push(structured.marked_read ? "mark read" : "mark unread");
   if (structured.archived) changes.push("archive");
+  if (structured.trashed) changes.push("trash");
+  if (structured.junked) changes.push("junk");
 
   const summary = clampText(
     `Organised ${messages.length} message(s) in ${structured.target.type} ` +

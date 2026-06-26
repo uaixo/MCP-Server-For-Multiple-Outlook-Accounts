@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDraft } from "../src/capabilities/createDraft.js";
+import { MAX_INLINE_ATTACHMENT_BYTES } from "../src/output/contract.js";
 import type { Account } from "../src/domain/types.js";
 import type {
   AccountRegistry,
   AttachmentReader,
+  AttachmentUploader,
   GraphClient,
   GraphRequest,
 } from "../src/domain/contracts.js";
@@ -18,6 +20,8 @@ const attachments: AttachmentReader = {
     bytes: new Uint8Array(Buffer.from(input.contentBase64 ?? "", "base64")),
   }),
 };
+
+const uploader: AttachmentUploader = { upload: async () => undefined };
 
 function graphQueue(responses: unknown[]) {
   const calls: GraphRequest[] = [];
@@ -36,7 +40,7 @@ describe("createDraft (C4)", () => {
     ]);
 
     const result = await createDraft(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       { to: ["b@x.com"], cc: ["c@x.com"], subject: "Hello", body: "hi there" },
     );
 
@@ -62,7 +66,7 @@ describe("createDraft (C4)", () => {
     const { graph, calls } = graphQueue([{ id: "draft2" }]);
 
     const result = await createDraft(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       {
         to: ["b@x.com"],
         body: "see attached",
@@ -87,7 +91,7 @@ describe("createDraft (C4)", () => {
     ]);
 
     const result = await createDraft(
-      { registry, graph, attachments },
+      { registry, graph, attachments, uploader },
       { to: ["b@x.com"], body: "my reply", replyToConversationId: "conv-1" },
     );
 
@@ -104,5 +108,31 @@ describe("createDraft (C4)", () => {
       value: "<orig@mail>",
     });
     expect(result.structured.is_reply).toBe(true);
+  });
+
+  it("uploads a large attachment to the created draft via an upload session", async () => {
+    const bigReader: AttachmentReader = {
+      read: async (i) => ({
+        filename: i.filename ?? "big.bin",
+        mimeType: "application/octet-stream",
+        bytes: new Uint8Array(MAX_INLINE_ATTACHMENT_BYTES + 10), // over the inline limit
+      }),
+    };
+    const upload = vi.fn(async () => undefined);
+    const { graph, calls } = graphQueue([{ id: "draftBig" }]);
+
+    const result = await createDraft(
+      { registry, graph, attachments: bigReader, uploader: { upload } },
+      { to: ["b@x.com"], body: "big", attachments: [{ filename: "big.bin", path: "/ignored" }] },
+    );
+
+    // The large file is NOT inlined into the draft body; it is uploaded after.
+    expect((calls[0]!.body as { attachments?: unknown[] }).attachments).toBeUndefined();
+    expect(upload).toHaveBeenCalledWith(
+      account,
+      "draftBig",
+      expect.objectContaining({ filename: "big.bin" }),
+    );
+    expect(result.structured.has_attachments).toBe(true);
   });
 });

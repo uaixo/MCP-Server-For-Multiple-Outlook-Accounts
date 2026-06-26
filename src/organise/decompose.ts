@@ -8,7 +8,8 @@
  *   - category add/remove + read-state → a single `PATCH /me/messages/{id}`
  *     (Graph's category PATCH replaces the whole array, so we merge against the
  *     message's current categories here); and
- *   - archive (remove from Inbox) → `POST /me/messages/{id}/move` to Archive.
+ *   - a move (archive / trash / junk) → `POST /me/messages/{id}/move` to the
+ *     Archive, Deleted Items, or Junk Email well-known folder.
  *
  * This module is pure (no I/O): the capability fetches each target message's
  * current state, calls `decompose`, and runs the returned operations.
@@ -21,8 +22,24 @@ import type {
   OrganiseTargetMessage,
 } from "../domain/contracts.js";
 
-/** Graph well-known folder id for the Archive location. */
+/** Graph well-known folder ids for the move destinations (provider-mapping §3.1). */
 export const ARCHIVE_FOLDER_ID = "archive";
+export const DELETED_ITEMS_FOLDER_ID = "deleteditems";
+export const JUNK_FOLDER_ID = "junkemail";
+
+/**
+ * The single move destination an intent requests, if any. archive/trash/junk are
+ * mutually exclusive (validated by the capability), so at most one applies; the
+ * order here is just a deterministic tie-break.
+ */
+export function moveDestination(
+  intent: OrganiseIntent,
+): { readonly id: string; readonly label: string } | undefined {
+  if (intent.archive) return { id: ARCHIVE_FOLDER_ID, label: "Archive" };
+  if (intent.trash) return { id: DELETED_ITEMS_FOLDER_ID, label: "Deleted Items" };
+  if (intent.junk) return { id: JUNK_FOLDER_ID, label: "Junk Email" };
+  return undefined;
+}
 
 /**
  * Merge a category change against the message's current categories. Adds win
@@ -82,15 +99,17 @@ export function decompose(
     ops.push({ description: `${describePatch(body)} on ${message.id}`, request: req });
   }
 
-  // 2) archive = move out of the Inbox (Graph has no combined modify+move call).
-  if (intent.archive) {
+  // 2) archive/trash/junk = move to a well-known folder (Graph has no combined
+  // modify+move call). At most one applies (validated upstream).
+  const move = moveDestination(intent);
+  if (move) {
     const req: GraphRequest = {
       method: "POST",
       path: `${path}/move`,
-      body: { destinationId: ARCHIVE_FOLDER_ID },
+      body: { destinationId: move.id },
       retryClass: "safe",
     };
-    ops.push({ description: `move ${message.id} to Archive`, request: req });
+    ops.push({ description: `move ${message.id} to ${move.label}`, request: req });
   }
 
   return ops;

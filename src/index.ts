@@ -302,10 +302,11 @@ export function createServer(deps: ServerDeps): McpServer {
       title: "Organise mail",
       description:
         "Apply organisation changes to exactly one target — a conversation OR a single message. " +
-        "Add/remove category labels, mark read/unread, and/or archive (remove from Inbox). " +
-        "At least one change is required. Applied to a conversation, it affects every message. " +
-        "Idempotent: if a conversation is only partially updated before an error, re-running the " +
-        "same request safely finishes it.",
+        "Add/remove category labels, mark read/unread, and/or move the mail: archive (remove from " +
+        "Inbox), trash (Deleted Items), or junk (Junk Email). archive/trash/junk are mutually " +
+        "exclusive. At least one change is required. Applied to a conversation, it affects every " +
+        "message. Idempotent: if a conversation is only partially updated before an error, " +
+        "re-running the same request safely finishes it.",
       inputSchema: {
         account: z.string().optional(),
         conversation_id: z.string().optional(),
@@ -314,6 +315,8 @@ export function createServer(deps: ServerDeps): McpServer {
         remove_labels: z.array(z.string()).optional(),
         mark_read: z.boolean().optional(),
         archive: z.boolean().optional(),
+        trash: z.boolean().optional(),
+        junk: z.boolean().optional(),
       },
       annotations: ORGANISE_ANNOTATIONS,
     },
@@ -327,6 +330,8 @@ export function createServer(deps: ServerDeps): McpServer {
           removeLabels: args.remove_labels,
           markRead: args.mark_read,
           archive: args.archive,
+          trash: args.trash,
+          junk: args.junk,
         }),
       ),
   );

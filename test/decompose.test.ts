@@ -58,6 +58,19 @@ describe("decompose (FR-C8-6)", () => {
     expect(ops[0]!.request.path).toBe("/me/messages/m1/move");
   });
 
+  it("moves to Deleted Items for trash and Junk Email for junk", () => {
+    expect(decompose(msg(), { trash: true })[0]!.request).toMatchObject({
+      method: "POST",
+      path: "/me/messages/m1/move",
+      body: { destinationId: "deleteditems" },
+    });
+    expect(decompose(msg(), { junk: true })[0]!.request).toMatchObject({
+      method: "POST",
+      path: "/me/messages/m1/move",
+      body: { destinationId: "junkemail" },
+    });
+  });
+
   it("computes the resulting categories for the union report", () => {
     expect(resultingCategories(msg({ categories: ["A"] }), { addLabelIds: ["B"] })).toEqual([
       "A",

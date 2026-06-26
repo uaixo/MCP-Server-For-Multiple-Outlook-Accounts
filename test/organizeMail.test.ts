@@ -39,6 +39,12 @@ describe("organizeMail (C8) — validation (FR-C8-1/2)", () => {
       /no changes requested/i,
     );
   });
+
+  it("rejects more than one move destination (FR-C8-3)", async () => {
+    await expect(
+      organizeMail(deps(graph), { messageId: "m1", archive: true, trash: true }),
+    ).rejects.toThrow(/at most one of archive, trash, or junk/i);
+  });
 });
 
 describe("organizeMail (C8) — single message", () => {
@@ -74,6 +80,19 @@ describe("organizeMail (C8) — single message", () => {
     expect(move.method).toBe("POST");
     expect(move.body).toEqual({ destinationId: "archive" });
     expect(result.structured.archived).toBe(true);
+  });
+
+  it("moves to Deleted Items for trash", async () => {
+    const { graph, calls } = makeGraph([
+      (req) => (req.method === "GET" ? { id: "m1", categories: [], isRead: true } : undefined),
+    ]);
+
+    const result = await organizeMail(deps(graph), { messageId: "m1", trash: true });
+
+    const move = calls.find((c) => c.path === "/me/messages/m1/move")!;
+    expect(move.body).toEqual({ destinationId: "deleteditems" });
+    expect(result.structured.trashed).toBe(true);
+    expect(result.structured.archived).toBeUndefined();
   });
 });
 
